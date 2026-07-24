@@ -4,6 +4,7 @@ import {
   normalizeVimeoWebhookPayload,
   parseVimeoWebhookBody,
 } from "@/services/vimeo-webhook.service";
+import { webhookProcessingService } from "@/processors/webhook-processing.service";
 
 export const runtime = "nodejs";
 
@@ -13,8 +14,8 @@ export const runtime = "nodejs";
  * Register URL: https://<vercel-domain>/api/webhooks/vimeo
  *
  * - OPTIONS: CORS preflight for admin Send test (https://*.vhx.tv)
- * - POST: body may be text/plain JSON → text() then JSON.parse; store raw payload
- * - 200 after successful insert (Vimeo retries ≤5 on non-200)
+ * - POST: store raw payload in vott_events, then process synchronously
+ * - 200 after successful insert (processing failures do not fail ingest)
  * - Test payloads may be mostly null — tolerated
  *
  * @see https://help.vimeo.com/hc/en-us/articles/12427285998225-Create-a-Vimeo-OTT-webhook
@@ -44,10 +45,15 @@ export async function POST(request: Request) {
     const event = normalizeVimeoWebhookPayload(raw);
     const saved = await insertEvent(event);
 
+    // Synchronous processing after durable ingest. Failures are returned in
+    // the body but do not trigger Vimeo retries (which would duplicate rows).
+    const processing = await webhookProcessingService.process(saved);
+
     return jsonWithCors(request, {
       ok: true,
       id: saved.id,
       topic: saved.topic,
+      processing,
     });
   } catch (error) {
     console.error("[vimeo-webhook]", error);
