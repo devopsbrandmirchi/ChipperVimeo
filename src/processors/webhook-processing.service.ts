@@ -9,6 +9,12 @@ import { PaymentRepository } from "@/repositories/payment.repository";
 import { ProductRepository } from "@/repositories/product.repository";
 import { SubscriptionEventRepository } from "@/repositories/subscription-event.repository";
 import { SubscriptionRepository } from "@/repositories/subscription.repository";
+import { AnalyticsService } from "@/services/analytics/analytics.service";
+import { CustomerService } from "@/services/customer/customer.service";
+import { PaymentService } from "@/services/payment/payment.service";
+import { ProductService } from "@/services/product/product.service";
+import { SubscriptionService } from "@/services/subscription/subscription.service";
+import { TimelineService } from "@/services/timeline/timeline.service";
 import type { VottEvent } from "@/types/vimeo";
 
 /**
@@ -21,6 +27,9 @@ export class WebhookProcessingService {
   private readonly router: EventRouter;
   private readonly logger: Logger;
   private readonly ctx: HandlerContext;
+  private readonly timeline: TimelineService;
+  /** Available for future APIs; not used by handlers in Phase 5. */
+  readonly analytics: AnalyticsService;
 
   constructor(options?: {
     client?: SupabaseClient;
@@ -30,12 +39,38 @@ export class WebhookProcessingService {
     const client = options?.client;
     this.router = options?.router ?? new EventRouter();
     this.logger = options?.logger ?? defaultLogger;
+
+    const customerRepo = new CustomerRepository(client);
+    const productRepo = new ProductRepository(client);
+    const subscriptionRepo = new SubscriptionRepository(client);
+    const subscriptionEventRepo = new SubscriptionEventRepository(client);
+    const paymentRepo = new PaymentRepository(client);
+
+    const customers = new CustomerService(customerRepo, this.logger);
+    const products = new ProductService(productRepo, this.logger);
+    const timeline = new TimelineService(subscriptionEventRepo, this.logger);
+    const subscriptions = new SubscriptionService(
+      subscriptionRepo,
+      customers,
+      timeline,
+      this.logger,
+    );
+    const payments = new PaymentService(paymentRepo, customers, this.logger);
+
+    this.timeline = timeline;
+    this.analytics = new AnalyticsService(
+      customerRepo,
+      subscriptionRepo,
+      paymentRepo,
+      this.logger,
+    );
+
     this.ctx = {
-      customerRepo: new CustomerRepository(client),
-      productRepo: new ProductRepository(client),
-      subscriptionRepo: new SubscriptionRepository(client),
-      subscriptionEventRepo: new SubscriptionEventRepository(client),
-      paymentRepo: new PaymentRepository(client),
+      customers,
+      products,
+      subscriptions,
+      payments,
+      timeline,
       logger: this.logger,
     };
   }
@@ -55,9 +90,7 @@ export class WebhookProcessingService {
     });
 
     try {
-      // Product-lifecycle idempotency: one subscription_events row per vott_event
-      const existing =
-        await this.ctx.subscriptionEventRepo.findByVottEventId(event.id);
+      const existing = await this.timeline.findByVottEventId(event.id);
       if (existing) {
         const durationMs = Date.now() - started;
         log.info("Event already processed", {
