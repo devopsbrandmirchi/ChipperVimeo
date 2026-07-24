@@ -48,10 +48,10 @@ export async function listEvents(
     query = query.ilike("customer_email", filters.customerEmail);
   }
   if (filters.from) {
-    query = query.gte("received_at", filters.from);
+    query = query.gte("received_date", filters.from);
   }
   if (filters.to) {
-    query = query.lte("received_at", filters.to);
+    query = query.lte("received_date", filters.to);
   }
 
   const { data, error } = await query;

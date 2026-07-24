@@ -117,6 +117,8 @@ export type VottEventInsert = {
 export type VottEvent = VottEventInsert & {
   id: string;
   received_at: string;
+  /** Calendar date (UTC) derived from received_at — best for day filters */
+  received_date: string;
 };
 
 /** Phase 2 filter params for listing webhook events */
@@ -124,7 +126,9 @@ export type VottEventFilters = {
   topic?: string;
   customerId?: number;
   customerEmail?: string;
+  /** Inclusive start date `YYYY-MM-DD` (uses received_date) */
   from?: string;
+  /** Inclusive end date `YYYY-MM-DD` (uses received_date) */
   to?: string;
   limit?: number;
   offset?: number;

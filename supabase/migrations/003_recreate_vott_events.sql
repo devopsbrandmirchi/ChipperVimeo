@@ -17,7 +17,8 @@ create table public.vott_events (
   subscription_status text,
   platform text,
   payload jsonb not null,
-  received_at timestamptz not null default now()
+  received_at timestamptz not null default now(),
+  received_date date generated always as ((received_at at time zone 'utc')::date) stored
 );
 
 comment on table public.vott_events is
@@ -25,6 +26,9 @@ comment on table public.vott_events is
 
 create index vott_events_received_at_idx
   on public.vott_events (received_at desc);
+
+create index vott_events_received_date_idx
+  on public.vott_events (received_date desc);
 
 create index vott_events_topic_idx
   on public.vott_events (topic);
