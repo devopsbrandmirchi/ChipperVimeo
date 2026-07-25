@@ -5,20 +5,23 @@
 
 import { createServiceClient } from "@/lib/supabase/server";
 import { defaultLogger, type Logger } from "@/processors/logger/logger";
+import { AnalyticsRepository } from "@/modules/analytics/repository/analytics.repository";
+import {
+  AnalyticsService,
+  type IAnalyticsService,
+} from "@/modules/analytics/service/analytics.service";
 import { CustomerRepository } from "@/repositories/customer.repository";
 import { PaymentRepository } from "@/repositories/payment.repository";
 import { ProductRepository } from "@/repositories/product.repository";
 import { SubscriptionEventRepository } from "@/repositories/subscription-event.repository";
 import { SubscriptionRepository } from "@/repositories/subscription.repository";
 import { VottEventRepository } from "@/repositories/vott-event.repository";
-import { AnalyticsService } from "@/services/analytics/analytics.service";
 import { CustomerService } from "@/services/customer/customer.service";
 import { PaymentService } from "@/services/payment/payment.service";
 import { ProductService } from "@/services/product/product.service";
 import { SubscriptionService } from "@/services/subscription/subscription.service";
 import { TimelineService } from "@/services/timeline/timeline.service";
 import { WebhookEventService } from "@/services/webhook-event/webhook-event.service";
-import type { IAnalyticsService } from "@/services/interfaces/analytics-service.interface";
 import type { ICustomerService } from "@/services/interfaces/customer-service.interface";
 import type { IPaymentService } from "@/services/interfaces/payment-service.interface";
 import type { IProductService } from "@/services/interfaces/product-service.interface";
@@ -46,6 +49,7 @@ export function createApiServices(logger: Logger = defaultLogger): ApiServices {
   const subscriptionEventRepo = new SubscriptionEventRepository(client);
   const paymentRepo = new PaymentRepository(client);
   const vottEventRepo = new VottEventRepository(client);
+  const analyticsRepo = new AnalyticsRepository(client);
 
   const customers = new CustomerService(customerRepo, logger);
   const products = new ProductService(productRepo, logger);
@@ -58,12 +62,7 @@ export function createApiServices(logger: Logger = defaultLogger): ApiServices {
   );
   const payments = new PaymentService(paymentRepo, customers, logger);
   const webhookEvents = new WebhookEventService(vottEventRepo, logger);
-  const analytics = new AnalyticsService(
-    customerRepo,
-    subscriptionRepo,
-    paymentRepo,
-    logger,
-  );
+  const analytics = new AnalyticsService(analyticsRepo, logger);
 
   return {
     customers,

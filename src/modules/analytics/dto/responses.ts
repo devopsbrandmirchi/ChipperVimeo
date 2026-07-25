@@ -1,0 +1,186 @@
+export type DashboardResponse = {
+  totalCustomers: number;
+  newCustomersToday: number;
+  activeSubscribers: number;
+  paused: number;
+  cancelled: number;
+  expired: number;
+  freeTrials: number;
+  renewalsToday: number;
+  chargeFailures: number;
+  recoveredPayments: number;
+  revenueTodayCents: number;
+  revenueWeekCents: number;
+  revenueMonthCents: number;
+  revenueYearCents: number;
+  mrrCents: number;
+  arrCents: number;
+  arpuCents: number;
+  arppuProxyCents: number;
+  trialConversionPct: number;
+  churnRatePct: number;
+  retentionRatePct: number;
+  paymentRecoveryRatePct: number;
+  refreshedAt: string | null;
+};
+
+export type RevenueResponse = {
+  /** Phase 8 compatible */
+  revenueCents: number;
+  currency: string | null;
+  note: string;
+  totalRevenueCents: number;
+  revenueTodayCents: number;
+  revenueWeekCents: number;
+  revenueMonthCents: number;
+  revenueYearCents: number;
+  series: Array<{ period: string; revenueCents: number }>;
+  refreshedAt: string | null;
+};
+
+export type CustomerAnalyticsResponse = {
+  activeSubscribers: number;
+  totalCustomers: number;
+  topLtv: Array<{
+    customerId: string;
+    email: string | null;
+    lifetimeRevenueCents: number;
+    country: string | null;
+    platform: string | null;
+  }>;
+  inTrial: Array<{ customerId: string; email: string | null }>;
+  failedPayments: Array<{
+    customerId: string;
+    email: string | null;
+    failedPaymentCount: number;
+  }>;
+  recentlyCancelled: Array<{ customerId: string; email: string | null }>;
+  byCountry: Array<{ country: string; customerCount: number; revenueCents: number }>;
+  byPlatform: Array<{
+    platform: string;
+    customerCount: number;
+    revenueCents: number;
+  }>;
+  refreshedAt: string | null;
+};
+
+export type SubscriptionAnalyticsResponse = {
+  total: number;
+  open: number;
+  paused: number;
+  cancelled: number;
+  expired: number;
+  freeTrial: number;
+  monthly: number;
+  yearly: number;
+  mrrCents: number;
+  avgSubscriptionDurationDays: number;
+  refreshedAt: string | null;
+};
+
+export type ProductAnalyticsResponse = {
+  products: Array<{
+    productId: string;
+    name: string | null;
+    subscribers: number;
+    openSubscribers: number;
+    trials: number;
+    cancellations: number;
+    revenueCents: number;
+    mrrContributionCents: number;
+    arrContributionCents: number;
+    cancellationPct: number;
+  }>;
+  refreshedAt: string | null;
+};
+
+export type CountryAnalyticsResponse = {
+  /** Phase 8 compatible */
+  dimension: string;
+  total: number;
+  note: string;
+  countries: Array<{
+    country: string;
+    customerCount: number;
+    openSubscriptionCount: number;
+    mrrCents: number;
+    revenueCents: number;
+  }>;
+  refreshedAt: string | null;
+};
+
+export type PlatformAnalyticsResponse = {
+  /** Phase 8 compatible */
+  dimension: string;
+  total: number;
+  note: string;
+  platforms: Array<{
+    platform: string;
+    customerCount: number;
+    openSubscriptionCount: number;
+    mrrCents: number;
+    revenueCents: number;
+  }>;
+  refreshedAt: string | null;
+};
+
+export type PaymentAnalyticsResponse = {
+  totalPayments: number;
+  successfulPayments: number;
+  failedPayments: number;
+  recoveredPayments: number;
+  revenueCents: number;
+  refreshedAt: string | null;
+};
+
+export type TrialAnalyticsResponse = {
+  totalTrials: number;
+  activeTrials: number;
+  trialsExpiringSoon: number;
+  trialConversionsProxy: number;
+  trialConversionPct: number;
+  refreshedAt: string | null;
+};
+
+export type ChurnAnalyticsResponse = {
+  cancelledTotal: number;
+  cancelledThisMonth: number;
+  retainedOpen: number;
+  churnRatePct: number;
+  retentionRatePct: number;
+  refreshedAt: string | null;
+};
+
+export type MRRResponse = {
+  mrrCents: number;
+  arrCents: number;
+  refreshedAt: string | null;
+};
+
+export type ARRResponse = {
+  arrCents: number;
+  mrrCents: number;
+  refreshedAt: string | null;
+};
+
+export type LTVResponse = {
+  avgLtvCents: number;
+  medianLtvCents: number;
+  maxLtvCents: number;
+  payingCustomers: number;
+  refreshedAt: string | null;
+};
+
+/** Phase 8 compatible overview shape (additive fields allowed later). */
+export type AnalyticsOverview = {
+  activeSubscribers: number;
+  cancelledSubscriptions: number;
+  trialSubscriptions: number;
+  revenue: {
+    revenueCents: number;
+    currency: string | null;
+    note: string;
+  };
+  countries: { dimension: string; total: number; note: string };
+  platforms: { dimension: string; total: number; note: string };
+};

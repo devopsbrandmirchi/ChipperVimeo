@@ -4,10 +4,6 @@ import { createApiServices } from "@/lib/api/service-container";
 
 export const GET = createApiHandler(async ({ requestId }) => {
   const { analytics } = createApiServices();
-  const data = await analytics.getSubscriptionAnalytics();
-  return successResponse(
-    data,
-    "Subscription analytics retrieved successfully",
-    { requestId },
-  );
+  const data = await analytics.getMrr();
+  return successResponse(data, "MRR retrieved successfully", { requestId });
 });

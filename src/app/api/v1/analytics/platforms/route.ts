@@ -4,7 +4,7 @@ import { createApiServices } from "@/lib/api/service-container";
 
 export const GET = createApiHandler(async ({ requestId }) => {
   const { analytics } = createApiServices();
-  const data = await analytics.getPlatformSummary();
+  const data = await analytics.getPlatformAnalytics();
   return successResponse(data, "Platform analytics retrieved successfully", {
     requestId,
   });

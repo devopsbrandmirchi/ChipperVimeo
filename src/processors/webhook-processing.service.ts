@@ -9,7 +9,6 @@ import { PaymentRepository } from "@/repositories/payment.repository";
 import { ProductRepository } from "@/repositories/product.repository";
 import { SubscriptionEventRepository } from "@/repositories/subscription-event.repository";
 import { SubscriptionRepository } from "@/repositories/subscription.repository";
-import { AnalyticsService } from "@/services/analytics/analytics.service";
 import { CustomerService } from "@/services/customer/customer.service";
 import { PaymentService } from "@/services/payment/payment.service";
 import { ProductService } from "@/services/product/product.service";
@@ -22,14 +21,13 @@ import type { VottEvent } from "@/types/vimeo";
  *
  * Call after a row is stored in vott_events. A future background worker can
  * invoke the same process(event) without changing handlers or repositories.
+ * Analytics is not on this hot path — use the API service container.
  */
 export class WebhookProcessingService {
   private readonly router: EventRouter;
   private readonly logger: Logger;
   private readonly ctx: HandlerContext;
   private readonly timeline: TimelineService;
-  /** Available for future APIs; not used by handlers in Phase 5. */
-  readonly analytics: AnalyticsService;
 
   constructor(options?: {
     client?: SupabaseClient;
@@ -58,12 +56,6 @@ export class WebhookProcessingService {
     const payments = new PaymentService(paymentRepo, customers, this.logger);
 
     this.timeline = timeline;
-    this.analytics = new AnalyticsService(
-      customerRepo,
-      subscriptionRepo,
-      paymentRepo,
-      this.logger,
-    );
 
     this.ctx = {
       customers,

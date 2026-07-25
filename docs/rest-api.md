@@ -136,18 +136,28 @@ Filtered lists → ≤200 candidate path.
 
 Full subscription lifecycle for a customer UUID, ordered ascending. Not paginated.
 
-### Analytics (placeholder-level)
+### Analytics
+
+Reporting source of truth is the `analytics` schema (materialized views). See [`docs/analytics-engine.md`](analytics-engine.md).
 
 | Endpoint | Returns |
 |----------|---------|
-| `GET /api/v1/analytics/overview` | Active/cancelled/trial counts, revenue placeholder, country/platform summaries |
-| `GET /api/v1/analytics/customers` | Active subscribers + country/platform summaries |
-| `GET /api/v1/analytics/subscriptions` | Cancelled + trial counts |
-| `GET /api/v1/analytics/revenue` | Placeholder (`revenueCents: 0`) |
-| `GET /api/v1/analytics/countries` | Placeholder dimension summary |
-| `GET /api/v1/analytics/platforms` | Placeholder dimension summary |
+| `GET /api/v1/analytics/dashboard` | Full KPI snapshot (MRR, ARR, churn, revenue windows, …) |
+| `GET /api/v1/analytics/overview` | Phase 8–compatible overview (backed by dashboard MV) |
+| `GET /api/v1/analytics/revenue` | Revenue totals + time series (`dateFrom`/`dateTo`/`groupBy`) |
+| `GET /api/v1/analytics/customers` | Customer analytics segments + dimension rollups |
+| `GET /api/v1/analytics/subscriptions` | Subscription status aggregates |
+| `GET /api/v1/analytics/products` | Per-product metrics |
+| `GET /api/v1/analytics/countries` | Country breakdown (+ Phase 8 `dimension`/`total`/`note`) |
+| `GET /api/v1/analytics/platforms` | Platform breakdown (+ Phase 8 fields) |
+| `GET /api/v1/analytics/payments` | Payment success/failure aggregates |
+| `GET /api/v1/analytics/trials` | Trial metrics |
+| `GET /api/v1/analytics/churn` | Churn / retention |
+| `GET /api/v1/analytics/mrr` | MRR (+ ARR) |
+| `GET /api/v1/analytics/arr` | ARR (+ MRR) |
+| `POST /api/v1/analytics/refresh` | ADMIN only — refresh MVs (`{ "target": "all" }`) |
 
-No charts or report engines in this phase.
+Auth required (cookie session). Never derived from `vott_events`.
 
 ### Operations
 

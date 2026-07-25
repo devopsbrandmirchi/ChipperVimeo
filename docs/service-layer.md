@@ -26,10 +26,6 @@ flowchart TD
   handlers --> paySvc[PaymentService]
   handlers --> timeSvc[TimelineService]
 
-  subSvc --> customerSvc
-  subSvc --> timeSvc
-  paySvc --> customerSvc
-
   customerSvc --> customerRepo[CustomerRepository]
   productSvc --> productRepo[ProductRepository]
   subSvc --> subRepo[SubscriptionRepository]
@@ -41,9 +37,13 @@ flowchart TD
   subRepo --> db
   eventRepo --> db
   payRepo --> db
+
+  apiRoutes[REST API analytics] --> analyticsSvc[AnalyticsService]
+  analyticsSvc --> analyticsRepo[AnalyticsRepository]
+  analyticsRepo --> analyticsSchema[analytics.mv_*]
 ```
 
-`AnalyticsService` is wired for future APIs and is not on the webhook hot path. Raw ingest also uses `VottEventRepository` before processing begins.
+`AnalyticsService` (`src/modules/analytics`) is wired only via the API service container — not on the webhook hot path. Raw ingest also uses `VottEventRepository` before processing begins.
 
 ## Service boundaries
 
@@ -54,7 +54,7 @@ flowchart TD
 | `SubscriptionService` | Create/renew/pause/resume/cancel/expire/trial + open-sub uniqueness |
 | `PaymentService` | Renewal/failed/recovered payments; customer payment date updates |
 | `TimelineService` | `subscription_events` lifecycle markers (idempotent on `vott_event_id`) |
-| `AnalyticsService` | Placeholder counters for future APIs (no heavy reports yet) |
+| `AnalyticsService` | Reads `analytics` MVs/RPCs; KPIs, dimensions, ADMIN refresh (not webhook path) |
 
 Ingest normalizer [`vimeo-webhook.service.ts`](../src/services/vimeo-webhook.service.ts) remains separate (Phase 1 payload shaping only).
 

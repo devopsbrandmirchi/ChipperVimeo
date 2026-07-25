@@ -68,10 +68,11 @@ Base URL for RSC: `NEXT_PUBLIC_APP_URL`, else `x-forwarded-host` / `host` from r
 Guidelines:
 
 1. Fetch only through `apiGetServer` / `apiGetClient`.
-2. Keep pages thin — compose section components.
-3. Prefer URL state over local filter state for lists.
-4. Lazy-load charts (`next/dynamic`) on dashboard/analytics.
-5. Do not import `@/repositories`, `@/services` implementations, or service-role clients from UI (type-only imports from service interfaces are acceptable).
+2. Analytics KPIs must come from `/api/v1/analytics/*` (analytics schema), never from operational tables or `vott_events` in the UI.
+3. Keep pages thin — compose section components.
+4. Prefer URL state over local filter state for lists.
+5. Lazy-load charts (`next/dynamic`) on dashboard/analytics.
+6. Do not import `@/repositories`, `@/services` implementations, or service-role clients from UI (type-only imports from service interfaces are acceptable).
 
 ## Design tokens
 
