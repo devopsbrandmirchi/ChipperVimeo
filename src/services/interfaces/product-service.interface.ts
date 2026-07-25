@@ -1,5 +1,7 @@
 import type { Product, ProductUpdate } from "@/types/database";
 import type { VimeoProduct } from "@/types/vimeo";
+import type { ProductListFilters, ResourceStatistics } from "@/types/common";
+import type { ApiPageRequest, PaginatedResult } from "@/types/pagination";
 
 export interface IProductService {
   upsertFromVimeoProduct(
@@ -25,4 +27,15 @@ export interface IProductService {
   ): Promise<Product>;
   updateActiveStatus(id: string, active: boolean | null): Promise<Product>;
   updateMetadata(id: string, patch: ProductUpdate): Promise<Product>;
+
+  getById(id: string): Promise<Product>;
+  list(
+    filters?: ProductListFilters,
+    page?: ApiPageRequest,
+  ): Promise<PaginatedResult<Product>>;
+  search(
+    filters: ProductListFilters,
+    page?: ApiPageRequest,
+  ): Promise<PaginatedResult<Product>>;
+  getStatistics(): Promise<ResourceStatistics>;
 }

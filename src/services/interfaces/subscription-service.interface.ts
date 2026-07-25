@@ -1,5 +1,10 @@
 import type { Customer, Product, Subscription } from "@/types/database";
 import type { VimeoCustomer } from "@/types/vimeo";
+import type {
+  ResourceStatistics,
+  SubscriptionListFilters,
+} from "@/types/common";
+import type { ApiPageRequest, PaginatedResult } from "@/types/pagination";
 
 export type SubscriptionLifecycleInput = {
   customer: Customer;
@@ -23,11 +28,18 @@ export interface ISubscriptionService {
   resume(input: SubscriptionLifecycleInput): Promise<SubscriptionMutationResult>;
   cancel(input: SubscriptionLifecycleInput): Promise<SubscriptionMutationResult>;
   expire(input: SubscriptionLifecycleInput): Promise<SubscriptionMutationResult>;
-  startTrial(input: SubscriptionLifecycleInput): Promise<SubscriptionMutationResult>;
-  convertTrial(input: SubscriptionLifecycleInput): Promise<SubscriptionMutationResult>;
-  updateSnapshot(input: SubscriptionLifecycleInput): Promise<SubscriptionMutationResult>;
-  markChargeFailed(input: SubscriptionLifecycleInput): Promise<SubscriptionMutationResult>;
-  /** State only — no timeline (for payment-before-marker flows). */
+  startTrial(
+    input: SubscriptionLifecycleInput,
+  ): Promise<SubscriptionMutationResult>;
+  convertTrial(
+    input: SubscriptionLifecycleInput,
+  ): Promise<SubscriptionMutationResult>;
+  updateSnapshot(
+    input: SubscriptionLifecycleInput,
+  ): Promise<SubscriptionMutationResult>;
+  markChargeFailed(
+    input: SubscriptionLifecycleInput,
+  ): Promise<SubscriptionMutationResult>;
   syncState(
     input: SubscriptionLifecycleInput,
     patch?: {
@@ -41,4 +53,15 @@ export interface ISubscriptionService {
       clearPause?: boolean;
     },
   ): Promise<SubscriptionMutationResult>;
+
+  getById(id: string): Promise<Subscription>;
+  list(
+    filters?: SubscriptionListFilters,
+    page?: ApiPageRequest,
+  ): Promise<PaginatedResult<Subscription>>;
+  search(
+    filters: SubscriptionListFilters,
+    page?: ApiPageRequest,
+  ): Promise<PaginatedResult<Subscription>>;
+  getStatistics(): Promise<ResourceStatistics>;
 }

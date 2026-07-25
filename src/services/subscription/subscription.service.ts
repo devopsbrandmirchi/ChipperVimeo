@@ -17,6 +17,12 @@ import type { ITimelineService } from "@/services/interfaces/timeline-service.in
 import type { ISubscriptionRepository } from "@/services/interfaces/repositories";
 import type { Subscription } from "@/types/database";
 import type { VimeoCustomer } from "@/types/vimeo";
+import type {
+  ResourceStatistics,
+  SubscriptionListFilters,
+} from "@/types/common";
+import type { ApiPageRequest, PaginatedResult } from "@/types/pagination";
+import { toPaginateOptions } from "@/types/pagination";
 
 type StatePatch = {
   status?: string | null;
@@ -313,5 +319,107 @@ export class SubscriptionService
         : (patch.pauseEndDate ?? stringOrNull(customer.pause_end_date)),
       promotion_code: stringOrNull(customer.promotion_code),
     };
+  }
+
+  async getById(id: string): Promise<Subscription> {
+    return this.timed("getById", async () => {
+      try {
+        const row = await this.subscriptions.findById(id);
+        return this.requireFound(row, "subscription", id);
+      } catch (error) {
+        this.mapRepositoryError(error, "getById");
+      }
+    });
+  }
+
+  async list(
+    filters: SubscriptionListFilters = {},
+    page: ApiPageRequest = {},
+  ): Promise<PaginatedResult<Subscription>> {
+    return this.timed("list", async () => {
+      try {
+        const needsCompose =
+          filters.trial !== undefined ||
+          Boolean(filters.renewalFrom) ||
+          Boolean(filters.renewalTo);
+
+        if (needsCompose) {
+          return this.search(filters, page);
+        }
+
+        return await this.subscriptions.paginate({
+          ...toPaginateOptions(page, "started_at"),
+          filters: {
+            status: filters.status,
+            billing_frequency: filters.billingFrequency,
+            product_id: filters.productId,
+            customer_id: filters.customerId,
+          },
+        });
+      } catch (error) {
+        this.mapRepositoryError(error, "list");
+      }
+    });
+  }
+
+  async search(
+    filters: SubscriptionListFilters,
+    page: ApiPageRequest = {},
+  ): Promise<PaginatedResult<Subscription>> {
+    return this.timed("search", async () => {
+      try {
+        const candidates = await this.subscriptions.search({
+          status: filters.status,
+          billingFrequency: filters.billingFrequency,
+          productId: filters.productId,
+          customerId: filters.customerId,
+          limit: 200,
+        });
+
+        let filtered = candidates;
+        if (filters.trial === true) {
+          filtered = filtered.filter((s) => s.free_trial === true);
+        } else if (filters.trial === false) {
+          filtered = filtered.filter((s) => s.free_trial !== true);
+        }
+        if (filters.renewalFrom) {
+          filtered = filtered.filter(
+            (s) =>
+              s.renewal_date &&
+              s.renewal_date.slice(0, 10) >= filters.renewalFrom!,
+          );
+        }
+        if (filters.renewalTo) {
+          filtered = filtered.filter(
+            (s) =>
+              s.renewal_date &&
+              s.renewal_date.slice(0, 10) <= filters.renewalTo!,
+          );
+        }
+
+        return this.paginateCandidates(filtered, page);
+      } catch (error) {
+        this.mapRepositoryError(error, "search");
+      }
+    });
+  }
+
+  async getStatistics(): Promise<ResourceStatistics> {
+    return this.timed("getStatistics", async () => {
+      try {
+        const total = await this.subscriptions.count();
+        const active = await this.subscriptions.count({ status: "active" });
+        const cancelled = await this.subscriptions.count({
+          status: "cancelled",
+        });
+        const trial = await this.subscriptions.count({ status: "free_trial" });
+        return {
+          total,
+          byStatus: { active, cancelled, free_trial: trial },
+        };
+      } catch (error) {
+        this.mapRepositoryError(error, "getStatistics");
+      }
+    });
   }
 }

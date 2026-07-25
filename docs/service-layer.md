@@ -10,10 +10,40 @@ Phase 5 — business rules live in services; handlers stay thin; repositories on
 | **Domain services** | What to do (rules, orchestration) | HTTP, React, raw SQL |
 | **Repositories** | How to save/load | Business rules, other services |
 
-```text
-Webhook → WebhookProcessingService → EventRouter → Handler
-    → Domain Services → Repositories → Database
+## Architecture
+
+Handlers are keyed by **Vimeo webhook topic**, not by entity. There is no standalone “Payment Handler” — payment rows are written inside product lifecycle handlers (renewed, charge_failed, trial_converted) via `PaymentService`. Services may call other services; repositories never call services.
+
+```mermaid
+flowchart TD
+  webhook[Vimeo Webhook] --> endpoint[Webhook Endpoint]
+  endpoint --> wps[WebhookProcessingService]
+  wps --> router[EventRouter resolves by topic]
+  router --> handlers["13 topic handlers + UnknownEventHandler"]
+  handlers --> customerSvc[CustomerService]
+  handlers --> productSvc[ProductService]
+  handlers --> subSvc[SubscriptionService]
+  handlers --> paySvc[PaymentService]
+  handlers --> timeSvc[TimelineService]
+
+  subSvc --> customerSvc
+  subSvc --> timeSvc
+  paySvc --> customerSvc
+
+  customerSvc --> customerRepo[CustomerRepository]
+  productSvc --> productRepo[ProductRepository]
+  subSvc --> subRepo[SubscriptionRepository]
+  timeSvc --> eventRepo[SubscriptionEventRepository]
+  paySvc --> payRepo[PaymentRepository]
+
+  customerRepo --> db[Supabase Database]
+  productRepo --> db
+  subRepo --> db
+  eventRepo --> db
+  payRepo --> db
 ```
+
+`AnalyticsService` is wired for future APIs and is not on the webhook hot path. Raw ingest also uses `VottEventRepository` before processing begins.
 
 ## Service boundaries
 

@@ -4,6 +4,8 @@ import type {
   CustomerUpdate,
 } from "@/types/database";
 import type { VimeoCustomer } from "@/types/vimeo";
+import type { CustomerListFilters, ResourceStatistics } from "@/types/common";
+import type { ApiPageRequest, PaginatedResult } from "@/types/pagination";
 
 export interface ICustomerService {
   upsertFromVimeoCustomer(
@@ -14,7 +16,11 @@ export interface ICustomerService {
   updateProfile(id: string, patch: CustomerUpdate): Promise<Customer>;
   updateLocation(
     id: string,
-    location: { country?: string | null; region?: string | null; city?: string | null },
+    location: {
+      country?: string | null;
+      region?: string | null;
+      city?: string | null;
+    },
   ): Promise<Customer>;
   updateMarketing(
     id: string,
@@ -42,4 +48,15 @@ export interface ICustomerService {
     nextPaymentDate: string | null,
   ): Promise<Customer>;
   touchLastSeen(id: string, at?: string): Promise<Customer>;
+
+  getById(id: string): Promise<Customer>;
+  list(
+    filters?: CustomerListFilters,
+    page?: ApiPageRequest,
+  ): Promise<PaginatedResult<Customer>>;
+  search(
+    filters: CustomerListFilters,
+    page?: ApiPageRequest,
+  ): Promise<PaginatedResult<Customer>>;
+  getStatistics(): Promise<ResourceStatistics>;
 }

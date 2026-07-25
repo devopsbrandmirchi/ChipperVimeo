@@ -6,6 +6,12 @@ import {
   EntityNotFoundError,
   ServiceValidationError,
 } from "@/services/shared/errors";
+import {
+  normalizePageRequest,
+  paginateArray,
+  type ApiPageRequest,
+  type PaginatedResult,
+} from "@/types/pagination";
 
 export abstract class BaseService {
   protected constructor(
@@ -31,10 +37,38 @@ export abstract class BaseService {
     return value;
   }
 
+  protected normalizePaging(input: ApiPageRequest = {}) {
+    return normalizePageRequest(input);
+  }
+
+  /** Paginate an in-memory candidate set (used when repo returns ≤200 rows). */
+  protected paginateCandidates<T>(
+    items: T[],
+    input: ApiPageRequest = {},
+  ): PaginatedResult<T> {
+    const { page, pageSize } = this.normalizePaging(input);
+    return paginateArray(items, page, pageSize);
+  }
+
+  protected requireFound<T>(
+    value: T | null | undefined,
+    entity: string,
+    id?: string,
+  ): T {
+    if (value === null || value === undefined) {
+      throw new EntityNotFoundError(entity, id);
+    }
+    return value;
+  }
+
   protected mapRepositoryError(error: unknown, context: string): never {
     if (error instanceof RepositoryError) {
       if (error.code === "NotFound") {
-        throw new EntityNotFoundError(error.table ?? "entity", undefined, error.message);
+        throw new EntityNotFoundError(
+          error.table ?? "entity",
+          undefined,
+          error.message,
+        );
       }
       if (error.code === "UniqueViolation") {
         throw new DuplicateEntityError(
@@ -49,7 +83,10 @@ export abstract class BaseService {
       );
     }
     if (error instanceof Error) {
-      throw new BusinessRuleViolationError(`${context}: ${error.message}`, error);
+      throw new BusinessRuleViolationError(
+        `${context}: ${error.message}`,
+        error,
+      );
     }
     throw new BusinessRuleViolationError(`${context}: unknown error`, error);
   }

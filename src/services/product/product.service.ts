@@ -5,6 +5,9 @@ import type { IProductService } from "@/services/interfaces/product-service.inte
 import type { IProductRepository } from "@/services/interfaces/repositories";
 import type { Product, ProductUpdate } from "@/types/database";
 import type { VimeoProduct } from "@/types/vimeo";
+import type { ProductListFilters, ResourceStatistics } from "@/types/common";
+import type { ApiPageRequest, PaginatedResult } from "@/types/pagination";
+import { toPaginateOptions } from "@/types/pagination";
 
 export class ProductService extends BaseService implements IProductService {
   constructor(
@@ -93,6 +96,81 @@ export class ProductService extends BaseService implements IProductService {
         return await this.products.update(id, patch);
       } catch (error) {
         this.mapRepositoryError(error, "updateMetadata");
+      }
+    });
+  }
+
+  async getById(id: string): Promise<Product> {
+    return this.timed("getById", async () => {
+      try {
+        const row = await this.products.findById(id);
+        return this.requireFound(row, "product", id);
+      } catch (error) {
+        this.mapRepositoryError(error, "getById");
+      }
+    });
+  }
+
+  async list(
+    filters: ProductListFilters = {},
+    page: ApiPageRequest = {},
+  ): Promise<PaginatedResult<Product>> {
+    return this.timed("list", async () => {
+      try {
+        if (filters.search || filters.name || filters.sku) {
+          return this.search(filters, page);
+        }
+        if (filters.active === true) {
+          const items = await this.products.findActive(200);
+          return this.paginateCandidates(items, page);
+        }
+        if (filters.active === false) {
+          const items = await this.products.findInactive(200);
+          return this.paginateCandidates(items, page);
+        }
+        return await this.products.paginate({
+          ...toPaginateOptions(page, "created_at"),
+        });
+      } catch (error) {
+        this.mapRepositoryError(error, "list");
+      }
+    });
+  }
+
+  async search(
+    filters: ProductListFilters,
+    page: ApiPageRequest = {},
+  ): Promise<PaginatedResult<Product>> {
+    return this.timed("search", async () => {
+      try {
+        const candidates = await this.products.search({
+          sku: filters.sku,
+          name: filters.search ?? filters.name,
+          limit: 200,
+        });
+        let filtered = candidates;
+        if (filters.active !== undefined) {
+          filtered = filtered.filter((p) => p.active === filters.active);
+        }
+        return this.paginateCandidates(filtered, page);
+      } catch (error) {
+        this.mapRepositoryError(error, "search");
+      }
+    });
+  }
+
+  async getStatistics(): Promise<ResourceStatistics> {
+    return this.timed("getStatistics", async () => {
+      try {
+        const total = await this.products.count();
+        const active = await this.products.count({ active: true });
+        const inactive = await this.products.count({ active: false });
+        return {
+          total,
+          byStatus: { active, inactive },
+        };
+      } catch (error) {
+        this.mapRepositoryError(error, "getStatistics");
       }
     });
   }

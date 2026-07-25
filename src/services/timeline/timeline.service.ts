@@ -67,6 +67,16 @@ export class TimelineService extends BaseService implements ITimelineService {
     return this.record("recovered", input);
   }
 
+  async getCustomerTimeline(customerId: string): Promise<SubscriptionEvent[]> {
+    return this.timed("getCustomerTimeline", async () => {
+      try {
+        return await this.events.findTimeline(customerId);
+      } catch (error) {
+        this.mapRepositoryError(error, "getCustomerTimeline");
+      }
+    });
+  }
+
   private async record(
     eventType: string,
     input: TimelineRecordInput,

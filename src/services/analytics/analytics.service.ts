@@ -1,6 +1,7 @@
 import type { Logger } from "@/processors/logger/logger";
 import { BaseService } from "@/services/shared/base.service";
 import type {
+  AnalyticsOverview,
   DimensionSummary,
   IAnalyticsService,
   RevenueSummary,
@@ -13,7 +14,7 @@ import type {
 
 /**
  * Placeholder analytics helpers for future APIs.
- * No heavy report engines in Phase 5.
+ * No heavy report engines yet.
  */
 export class AnalyticsService extends BaseService implements IAnalyticsService {
   constructor(
@@ -74,6 +75,55 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
         total,
         note: "Placeholder — breakdown by platform in a later phase",
       };
+    });
+  }
+
+  async getOverview(): Promise<AnalyticsOverview> {
+    return this.timed("getOverview", async () => {
+      const [
+        activeSubscribers,
+        cancelledSubscriptions,
+        trialSubscriptions,
+        revenue,
+        countries,
+        platforms,
+      ] = await Promise.all([
+        this.getActiveSubscriberCount(),
+        this.getCancelledCount(),
+        this.getTrialCount(),
+        this.getRevenueSummary(),
+        this.getCountrySummary(),
+        this.getPlatformSummary(),
+      ]);
+      return {
+        activeSubscribers,
+        cancelledSubscriptions,
+        trialSubscriptions,
+        revenue,
+        countries,
+        platforms,
+      };
+    });
+  }
+
+  async getCustomerStats() {
+    return this.timed("getCustomerStats", async () => {
+      const [activeSubscribers, countries, platforms] = await Promise.all([
+        this.getActiveSubscriberCount(),
+        this.getCountrySummary(),
+        this.getPlatformSummary(),
+      ]);
+      return { activeSubscribers, countries, platforms };
+    });
+  }
+
+  async getSubscriptionStats() {
+    return this.timed("getSubscriptionStats", async () => {
+      const [cancelled, trial] = await Promise.all([
+        this.getCancelledCount(),
+        this.getTrialCount(),
+      ]);
+      return { cancelled, trial };
     });
   }
 }

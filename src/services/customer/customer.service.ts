@@ -13,6 +13,9 @@ import type {
   CustomerUpdate,
 } from "@/types/database";
 import type { VimeoCustomer } from "@/types/vimeo";
+import type { CustomerListFilters, ResourceStatistics } from "@/types/common";
+import type { ApiPageRequest, PaginatedResult } from "@/types/pagination";
+import { toPaginateOptions } from "@/types/pagination";
 
 export class CustomerService extends BaseService implements ICustomerService {
   constructor(
@@ -141,6 +144,117 @@ export class CustomerService extends BaseService implements ICustomerService {
         return await this.customers.updateLastSeen(id, at);
       } catch (error) {
         this.mapRepositoryError(error, "touchLastSeen");
+      }
+    });
+  }
+
+  async getById(id: string): Promise<Customer> {
+    return this.timed("getById", async () => {
+      try {
+        const row = await this.customers.findById(id);
+        return this.requireFound(row, "customer", id);
+      } catch (error) {
+        this.mapRepositoryError(error, "getById");
+      }
+    });
+  }
+
+  async list(
+    filters: CustomerListFilters = {},
+    page: ApiPageRequest = {},
+  ): Promise<PaginatedResult<Customer>> {
+    return this.timed("list", async () => {
+      try {
+        const needsSearch =
+          Boolean(filters.search) ||
+          Boolean(filters.signupFrom) ||
+          Boolean(filters.signupTo) ||
+          Boolean(filters.productId);
+
+        if (needsSearch) {
+          return this.search(filters, page);
+        }
+
+        const status =
+          filters.subscriptionStatus ?? filters.status ?? undefined;
+        const eqFilters: Record<
+          string,
+          string | number | boolean | null | undefined
+        > = {
+          country: filters.country,
+          platform: filters.platform,
+          plan: filters.plan,
+          subscription_status: status,
+        };
+
+        return await this.customers.paginate({
+          ...toPaginateOptions(page, "created_at"),
+          filters: eqFilters,
+        });
+      } catch (error) {
+        this.mapRepositoryError(error, "list");
+      }
+    });
+  }
+
+  async search(
+    filters: CustomerListFilters,
+    page: ApiPageRequest = {},
+  ): Promise<PaginatedResult<Customer>> {
+    return this.timed("search", async () => {
+      try {
+        const status =
+          filters.subscriptionStatus ?? filters.status ?? undefined;
+        const candidates = await this.customers.search({
+          email: filters.search,
+          name: filters.search,
+          country: filters.country,
+          platform: filters.platform,
+          status,
+          limit: 200,
+        });
+
+        let filtered = candidates;
+        if (filters.plan) {
+          filtered = filtered.filter((c) => c.plan === filters.plan);
+        }
+        if (filters.signupFrom) {
+          filtered = filtered.filter(
+            (c) =>
+              c.customer_created_at &&
+              c.customer_created_at.slice(0, 10) >= filters.signupFrom!,
+          );
+        }
+        if (filters.signupTo) {
+          filtered = filtered.filter(
+            (c) =>
+              c.customer_created_at &&
+              c.customer_created_at.slice(0, 10) <= filters.signupTo!,
+          );
+        }
+        // productId cannot be joined without repo changes — ignored with note in docs
+
+        return this.paginateCandidates(filtered, page);
+      } catch (error) {
+        this.mapRepositoryError(error, "search");
+      }
+    });
+  }
+
+  async getStatistics(): Promise<ResourceStatistics> {
+    return this.timed("getStatistics", async () => {
+      try {
+        const total = await this.customers.count();
+        const active = await this.customers.count({
+          subscription_status: "active",
+        });
+        return {
+          total,
+          byStatus: { active },
+          note: "Partial status breakdown — extend in analytics phase",
+        };
+      } catch (error) {
+        this.mapRepositoryError(error, "getStatistics");
       }
     });
   }
