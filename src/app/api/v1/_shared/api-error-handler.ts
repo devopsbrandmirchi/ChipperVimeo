@@ -2,6 +2,11 @@ import { ZodError } from "zod";
 
 import { errorResponse } from "@/app/api/v1/_shared/responses";
 import {
+  ForbiddenError,
+  InvalidCredentialsError,
+  UnauthorizedError,
+} from "@/auth/types/errors";
+import {
   BusinessRuleViolationError,
   DuplicateEntityError,
   EntityNotFoundError,
@@ -24,6 +29,23 @@ export function mapApiError(
   if (error instanceof ZodError) {
     return errorResponse("Invalid request", 400, {
       errors: zodErrors(error),
+      requestId,
+    });
+  }
+
+  if (
+    error instanceof UnauthorizedError ||
+    error instanceof InvalidCredentialsError
+  ) {
+    return errorResponse(error.message, 401, {
+      errors: [{ code: error.code, message: error.message }],
+      requestId,
+    });
+  }
+
+  if (error instanceof ForbiddenError) {
+    return errorResponse(error.message, 403, {
+      errors: [{ code: error.code, message: error.message }],
       requestId,
     });
   }

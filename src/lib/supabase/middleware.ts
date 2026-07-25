@@ -1,19 +1,31 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+export type SessionUser = {
+  id: string;
+  email: string | undefined;
+  role: string | null;
+};
+
+export type UpdateSessionResult = {
+  response: NextResponse;
+  user: SessionUser | null;
+};
+
 /**
- * Phase 2: refresh Supabase Auth session cookies at the network boundary.
- * Called from `src/proxy.ts` — do not use for webhook authorization.
+ * Refresh Supabase Auth session cookies at the network boundary.
+ * Called from `src/proxy.ts` — never used to authorize the Vimeo webhook.
  */
-export async function updateSession(request: NextRequest) {
+export async function updateSession(
+  request: NextRequest,
+): Promise<UpdateSessionResult> {
   let supabaseResponse = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Env may be unset during early local setup; pass the request through.
   if (!url || !anonKey) {
-    return supabaseResponse;
+    return { response: supabaseResponse, user: null };
   }
 
   const supabase = createServerClient(url, anonKey, {
@@ -33,8 +45,23 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // Touches the session so cookies stay fresh; auth gating is Phase 2.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return supabaseResponse;
+  if (!user) {
+    return { response: supabaseResponse, user: null };
+  }
+
+  const roleValue = user.app_metadata?.role;
+  const role = typeof roleValue === "string" ? roleValue : null;
+
+  return {
+    response: supabaseResponse,
+    user: {
+      id: user.id,
+      email: user.email,
+      role,
+    },
+  };
 }
