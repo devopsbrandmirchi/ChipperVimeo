@@ -6,8 +6,8 @@ import { createApiServices } from "@/lib/api/service-container";
 export const GET = createApiHandler(async ({ request, requestId }) => {
   const filters = parseAnalyticsFilters(request);
   const { analytics } = createApiServices();
-  const data = await analytics.getPaymentAnalytics(filters);
-  return successResponse(data, "Payment analytics retrieved successfully", {
+  const data = await analytics.getDailyAnalytics(filters);
+  return successResponse(data, "Daily analytics retrieved successfully", {
     requestId,
   });
 });

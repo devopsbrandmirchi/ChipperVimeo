@@ -171,6 +171,44 @@ export type LTVResponse = {
   refreshedAt: string | null;
 };
 
+/** Umbrella historical daily payload (GET /analytics/daily). */
+export type DailyAnalyticsResponse = {
+  subscriptions: Array<{
+    date: string;
+    newSubscriptions: number;
+    renewals: number;
+    cancellations: number;
+    expirations: number;
+    paused: number;
+    resumed: number;
+    activeSubscriptions: number;
+    netGrowth: number;
+    churnRate: number;
+  }>;
+  trials: Array<{
+    date: string;
+    trialsStarted: number;
+    trialsConverted: number;
+    trialsExpired: number;
+    conversionRate: number;
+  }>;
+  payments: Array<{
+    date: string;
+    successfulPayments: number;
+    failedPayments: number;
+    recoveredPayments: number;
+    paymentSuccessRate: number;
+    revenueCents: number;
+  }>;
+  customers: Array<{
+    date: string;
+    newCustomers: number;
+    activeCustomers: number;
+    returningCustomers: number;
+  }>;
+  source: "daily_snapshots";
+};
+
 /** Phase 8 compatible overview shape (additive fields allowed later). */
 export type AnalyticsOverview = {
   activeSubscribers: number;

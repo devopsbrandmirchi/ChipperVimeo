@@ -138,24 +138,29 @@ Full subscription lifecycle for a customer UUID, ordered ascending. Not paginate
 
 ### Analytics
 
-Reporting source of truth is the `analytics` schema (materialized views). See [`docs/analytics-engine.md`](analytics-engine.md).
+Two layers in the `analytics` schema — see [`docs/analytics-engine.md`](analytics-engine.md):
+
+- **`mv_*`** — current KPI cards (`/dashboard`, `/overview`, `/mrr`, `/arr`, and domain GETs **without** a date range)
+- **`daily_*`** — historical SoT when `date` / `dateFrom` / `dateTo` are present (and always for `/daily`)
 
 | Endpoint | Returns |
 |----------|---------|
 | `GET /api/v1/analytics/dashboard` | Full KPI snapshot (MRR, ARR, churn, revenue windows, …) |
 | `GET /api/v1/analytics/overview` | Phase 8–compatible overview (backed by dashboard MV) |
-| `GET /api/v1/analytics/revenue` | Revenue totals + time series (`dateFrom`/`dateTo`/`groupBy`) |
+| `GET /api/v1/analytics/revenue` | Revenue totals + series (`dateFrom`/`dateTo`/`groupBy` → `daily_payment_metrics`) |
 | `GET /api/v1/analytics/customers` | Customer analytics segments + dimension rollups |
-| `GET /api/v1/analytics/subscriptions` | Subscription status aggregates |
-| `GET /api/v1/analytics/products` | Per-product metrics |
-| `GET /api/v1/analytics/countries` | Country breakdown (+ Phase 8 `dimension`/`total`/`note`) |
-| `GET /api/v1/analytics/platforms` | Platform breakdown (+ Phase 8 fields) |
-| `GET /api/v1/analytics/payments` | Payment success/failure aggregates |
-| `GET /api/v1/analytics/trials` | Trial metrics |
-| `GET /api/v1/analytics/churn` | Churn / retention |
+| `GET /api/v1/analytics/subscriptions` | Current MV totals, or daily subscription series with date range |
+| `GET /api/v1/analytics/products` | Current or historical product metrics |
+| `GET /api/v1/analytics/countries` | Current or historical country breakdown |
+| `GET /api/v1/analytics/platforms` | Current or historical platform breakdown |
+| `GET /api/v1/analytics/payments` | Current or historical payment metrics |
+| `GET /api/v1/analytics/trials` | Current or historical trial metrics |
+| `GET /api/v1/analytics/daily` | Umbrella daily series (default last 30 days) from `daily_*` |
+| `GET /api/v1/analytics/churn` | Churn / retention (MV) |
 | `GET /api/v1/analytics/mrr` | MRR (+ ARR) |
 | `GET /api/v1/analytics/arr` | ARR (+ MRR) |
-| `POST /api/v1/analytics/refresh` | ADMIN only — refresh MVs (`{ "target": "all" }`) |
+| `POST /api/v1/analytics/refresh` | ADMIN — refresh MVs (`{ "target": "all" }`) |
+| `POST /api/v1/analytics/daily/build` | ADMIN — `{ "date" }` \| `{ "dateFrom","dateTo" }` \| `{ "mode":"all" }` |
 
 Auth required (cookie session). Never derived from `vott_events`.
 

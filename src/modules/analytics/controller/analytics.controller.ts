@@ -7,6 +7,7 @@ import type { NextRequest } from "next/server";
 
 import {
   analyticsFiltersSchema,
+  buildDailyAnalyticsSchema,
   refreshAnalyticsSchema,
 } from "@/modules/analytics/dto/filters";
 import type { IAnalyticsService } from "@/modules/analytics/service/analytics.service";
@@ -19,6 +20,11 @@ export function parseAnalyticsFilters(request: NextRequest) {
 export async function parseRefreshBody(request: NextRequest) {
   const body: unknown = await request.json().catch(() => ({}));
   return refreshAnalyticsSchema.parse(body ?? {});
+}
+
+export async function parseBuildDailyBody(request: NextRequest) {
+  const body: unknown = await request.json().catch(() => ({}));
+  return buildDailyAnalyticsSchema.parse(body ?? {});
 }
 
 export type AnalyticsController = {

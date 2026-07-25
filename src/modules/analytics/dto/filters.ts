@@ -9,6 +9,10 @@ export const analyticsGroupBySchema = z.enum([
 ]);
 
 export const analyticsFiltersSchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   dateFrom: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -50,3 +54,32 @@ export const refreshAnalyticsSchema = z.object({
 });
 
 export type RefreshAnalyticsInput = z.infer<typeof refreshAnalyticsSchema>;
+
+export const buildDailyAnalyticsSchema = z
+  .object({
+    mode: z.enum(["all"]).optional(),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    dateFrom: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    dateTo: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.mode === "all") return;
+    if (val.date) return;
+    if (val.dateFrom && val.dateTo) return;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Provide mode=all, or date, or both dateFrom and dateTo (YYYY-MM-DD)",
+    });
+  });
+
+export type BuildDailyAnalyticsInput = z.infer<typeof buildDailyAnalyticsSchema>;

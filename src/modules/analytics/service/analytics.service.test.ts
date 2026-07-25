@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AnalyticsService } from "@/modules/analytics/service/analytics.service";
 import type { AnalyticsRepository } from "@/modules/analytics/repository/analytics.repository";
+import type { DailyMetricsRepository } from "@/modules/analytics/repository/daily-metrics.repository";
 import { Logger } from "@/processors/logger/logger";
 
 function mockRepo(
@@ -53,18 +54,59 @@ function mockRepo(
   } as unknown as AnalyticsRepository;
 }
 
+function mockDailyRepo(
+  overrides: Partial<DailyMetricsRepository> = {},
+): DailyMetricsRepository {
+  return {
+    buildForDate: vi.fn().mockResolvedValue(undefined),
+    earliestMetricsDate: vi.fn().mockResolvedValue("2026-01-01"),
+    listSubscriptionMetrics: vi.fn().mockResolvedValue([
+      {
+        date: "2026-07-01",
+        new_subscriptions: 2,
+        renewals: 1,
+        cancellations: 1,
+        expirations: 0,
+        paused: 0,
+        resumed: 0,
+        active_subscriptions: 10,
+        net_growth: 1,
+        churn_rate: 9.09,
+        built_at: "2026-07-25T00:00:00Z",
+      },
+    ]),
+    listTrialMetrics: vi.fn().mockResolvedValue([]),
+    listPaymentMetrics: vi.fn().mockResolvedValue([
+      {
+        date: "2026-07-01",
+        successful_payments: 3,
+        failed_payments: 1,
+        recovered_payments: 0,
+        payment_success_rate: 75,
+        revenue_cents: 900,
+        built_at: "2026-07-25T00:00:00Z",
+      },
+    ]),
+    listCustomerMetrics: vi.fn().mockResolvedValue([]),
+    listProductMetrics: vi.fn().mockResolvedValue([]),
+    listCountryMetrics: vi.fn().mockResolvedValue([]),
+    listPlatformMetrics: vi.fn().mockResolvedValue([]),
+    ...overrides,
+  } as unknown as DailyMetricsRepository;
+}
+
 describe("AnalyticsService", () => {
   const logger = new Logger({ service: "test" });
 
   it("returns dashboard KPIs from repository", async () => {
-    const service = new AnalyticsService(mockRepo(), logger);
+    const service = new AnalyticsService(mockRepo(), mockDailyRepo(), logger);
     const dashboard = await service.getDashboard();
     expect(dashboard.activeSubscribers).toBe(4);
     expect(dashboard.mrrCents).toBe(100);
   });
 
   it("builds Phase 8 compatible overview", async () => {
-    const service = new AnalyticsService(mockRepo(), logger);
+    const service = new AnalyticsService(mockRepo(), mockDailyRepo(), logger);
     const overview = await service.getOverview();
     expect(overview.activeSubscribers).toBe(4);
     expect(overview.revenue.revenueCents).toBe(500);
@@ -72,9 +114,32 @@ describe("AnalyticsService", () => {
 
   it("refresh delegates to repository", async () => {
     const repo = mockRepo();
-    const service = new AnalyticsService(repo, logger);
+    const service = new AnalyticsService(repo, mockDailyRepo(), logger);
     const result = await service.refresh("dashboard");
     expect(repo.refresh).toHaveBeenCalledWith("dashboard");
     expect(result.ok).toBe(true);
+  });
+
+  it("uses daily snapshots when date range is provided", async () => {
+    const daily = mockDailyRepo();
+    const service = new AnalyticsService(mockRepo(), daily, logger);
+    const data = await service.getSubscriptionAnalytics({
+      dateFrom: "2026-07-01",
+      dateTo: "2026-07-01",
+    });
+    expect(daily.listSubscriptionMetrics).toHaveBeenCalled();
+    expect(data.open).toBe(10);
+    expect(data.cancelled).toBe(1);
+  });
+
+  it("uses daily payment snapshots for historical revenue", async () => {
+    const daily = mockDailyRepo();
+    const service = new AnalyticsService(mockRepo(), daily, logger);
+    const data = await service.getRevenue({
+      dateFrom: "2026-07-01",
+      dateTo: "2026-07-01",
+    });
+    expect(daily.listPaymentMetrics).toHaveBeenCalled();
+    expect(data.totalRevenueCents).toBe(900);
   });
 });

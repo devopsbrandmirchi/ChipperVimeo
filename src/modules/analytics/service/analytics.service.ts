@@ -7,6 +7,7 @@ import type {
   ChurnAnalyticsResponse,
   CountryAnalyticsResponse,
   CustomerAnalyticsResponse,
+  DailyAnalyticsResponse,
   DashboardResponse,
   LTVResponse,
   MRRResponse,
@@ -33,8 +34,21 @@ import {
   mapSubscriptions,
   mapTrials,
 } from "@/modules/analytics/mappers/analytics.mappers";
+import {
+  defaultLast30DaysFilters,
+  hasHistoricalRange,
+  mapDailyCountrySeries,
+  mapDailyPaymentSeries,
+  mapDailyPlatformSeries,
+  mapDailyProductSeries,
+  mapDailyRevenueFromPayments,
+  mapDailySubscriptionSeries,
+  mapDailyTrialSeries,
+  mapDailyUmbrella,
+} from "@/modules/analytics/mappers/daily.mappers";
 import { listMetrics } from "@/modules/analytics/metrics";
 import { AnalyticsRepository } from "@/modules/analytics/repository/analytics.repository";
+import { DailyMetricsRepository } from "@/modules/analytics/repository/daily-metrics.repository";
 
 export interface IAnalyticsService {
   getDashboard(): Promise<DashboardResponse>;
@@ -43,16 +57,27 @@ export interface IAnalyticsService {
   getCustomerAnalytics(
     filters?: AnalyticsFilters,
   ): Promise<CustomerAnalyticsResponse>;
-  getSubscriptionAnalytics(): Promise<SubscriptionAnalyticsResponse>;
-  getProductAnalytics(): Promise<ProductAnalyticsResponse>;
-  getCountryAnalytics(): Promise<CountryAnalyticsResponse>;
-  getPlatformAnalytics(): Promise<PlatformAnalyticsResponse>;
-  getPaymentAnalytics(): Promise<PaymentAnalyticsResponse>;
-  getTrialAnalytics(): Promise<TrialAnalyticsResponse>;
+  getSubscriptionAnalytics(
+    filters?: AnalyticsFilters,
+  ): Promise<SubscriptionAnalyticsResponse>;
+  getProductAnalytics(
+    filters?: AnalyticsFilters,
+  ): Promise<ProductAnalyticsResponse>;
+  getCountryAnalytics(
+    filters?: AnalyticsFilters,
+  ): Promise<CountryAnalyticsResponse>;
+  getPlatformAnalytics(
+    filters?: AnalyticsFilters,
+  ): Promise<PlatformAnalyticsResponse>;
+  getPaymentAnalytics(
+    filters?: AnalyticsFilters,
+  ): Promise<PaymentAnalyticsResponse>;
+  getTrialAnalytics(filters?: AnalyticsFilters): Promise<TrialAnalyticsResponse>;
   getChurnAnalytics(): Promise<ChurnAnalyticsResponse>;
   getMrr(): Promise<MRRResponse>;
   getArr(): Promise<ARRResponse>;
   getLtv(): Promise<LTVResponse>;
+  getDailyAnalytics(filters?: AnalyticsFilters): Promise<DailyAnalyticsResponse>;
   refresh(
     target?:
       | "all"
@@ -101,6 +126,7 @@ export interface IAnalyticsService {
 export class AnalyticsService extends BaseService implements IAnalyticsService {
   constructor(
     private readonly repo: AnalyticsRepository,
+    private readonly dailyRepo: DailyMetricsRepository,
     logger: Logger,
   ) {
     super("AnalyticsService", logger);
@@ -135,6 +161,10 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
   async getRevenue(filters: AnalyticsFilters = {}): Promise<RevenueResponse> {
     return this.timed("getRevenue", async () => {
       try {
+        if (hasHistoricalRange(filters)) {
+          const rows = await this.dailyRepo.listPaymentMetrics(filters);
+          return mapDailyRevenueFromPayments(rows, filters.groupBy ?? "day");
+        }
         const dashboard = await this.getDashboard();
         const groupBy =
           filters.groupBy === "month" ||
@@ -191,9 +221,15 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
     });
   }
 
-  async getSubscriptionAnalytics(): Promise<SubscriptionAnalyticsResponse> {
+  async getSubscriptionAnalytics(
+    filters: AnalyticsFilters = {},
+  ): Promise<SubscriptionAnalyticsResponse> {
     return this.timed("getSubscriptionAnalytics", async () => {
       try {
+        if (hasHistoricalRange(filters)) {
+          const rows = await this.dailyRepo.listSubscriptionMetrics(filters);
+          return mapDailySubscriptionSeries(rows, filters.groupBy ?? "day");
+        }
         return mapSubscriptions(await this.repo.getSubscriptionMetrics());
       } catch (error) {
         this.mapRepositoryError(error, "getSubscriptionAnalytics");
@@ -201,9 +237,15 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
     });
   }
 
-  async getProductAnalytics(): Promise<ProductAnalyticsResponse> {
+  async getProductAnalytics(
+    filters: AnalyticsFilters = {},
+  ): Promise<ProductAnalyticsResponse> {
     return this.timed("getProductAnalytics", async () => {
       try {
+        if (hasHistoricalRange(filters)) {
+          const rows = await this.dailyRepo.listProductMetrics(filters);
+          return mapDailyProductSeries(rows);
+        }
         return mapProducts(await this.repo.listProductMetrics());
       } catch (error) {
         this.mapRepositoryError(error, "getProductAnalytics");
@@ -211,9 +253,15 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
     });
   }
 
-  async getCountryAnalytics(): Promise<CountryAnalyticsResponse> {
+  async getCountryAnalytics(
+    filters: AnalyticsFilters = {},
+  ): Promise<CountryAnalyticsResponse> {
     return this.timed("getCountryAnalytics", async () => {
       try {
+        if (hasHistoricalRange(filters)) {
+          const rows = await this.dailyRepo.listCountryMetrics(filters);
+          return mapDailyCountrySeries(rows);
+        }
         return mapCountries(await this.repo.listCountryMetrics());
       } catch (error) {
         this.mapRepositoryError(error, "getCountryAnalytics");
@@ -221,9 +269,15 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
     });
   }
 
-  async getPlatformAnalytics(): Promise<PlatformAnalyticsResponse> {
+  async getPlatformAnalytics(
+    filters: AnalyticsFilters = {},
+  ): Promise<PlatformAnalyticsResponse> {
     return this.timed("getPlatformAnalytics", async () => {
       try {
+        if (hasHistoricalRange(filters)) {
+          const rows = await this.dailyRepo.listPlatformMetrics(filters);
+          return mapDailyPlatformSeries(rows);
+        }
         return mapPlatforms(await this.repo.listPlatformMetrics());
       } catch (error) {
         this.mapRepositoryError(error, "getPlatformAnalytics");
@@ -231,9 +285,15 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
     });
   }
 
-  async getPaymentAnalytics(): Promise<PaymentAnalyticsResponse> {
+  async getPaymentAnalytics(
+    filters: AnalyticsFilters = {},
+  ): Promise<PaymentAnalyticsResponse> {
     return this.timed("getPaymentAnalytics", async () => {
       try {
+        if (hasHistoricalRange(filters)) {
+          const rows = await this.dailyRepo.listPaymentMetrics(filters);
+          return mapDailyPaymentSeries(rows, filters.groupBy ?? "day");
+        }
         return mapPayments(await this.repo.getPaymentMetrics());
       } catch (error) {
         this.mapRepositoryError(error, "getPaymentAnalytics");
@@ -241,9 +301,15 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
     });
   }
 
-  async getTrialAnalytics(): Promise<TrialAnalyticsResponse> {
+  async getTrialAnalytics(
+    filters: AnalyticsFilters = {},
+  ): Promise<TrialAnalyticsResponse> {
     return this.timed("getTrialAnalytics", async () => {
       try {
+        if (hasHistoricalRange(filters)) {
+          const rows = await this.dailyRepo.listTrialMetrics(filters);
+          return mapDailyTrialSeries(rows, filters.groupBy ?? "day");
+        }
         const [trial, dashboard] = await Promise.all([
           this.repo.getTrialMetrics(),
           this.getDashboard(),
@@ -251,6 +317,30 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
         return mapTrials(trial, dashboard.trialConversionPct);
       } catch (error) {
         this.mapRepositoryError(error, "getTrialAnalytics");
+      }
+    });
+  }
+
+  async getDailyAnalytics(
+    filters: AnalyticsFilters = {},
+  ): Promise<DailyAnalyticsResponse> {
+    return this.timed("getDailyAnalytics", async () => {
+      try {
+        const range = defaultLast30DaysFilters(filters);
+        const [subscriptions, trials, payments, customers] = await Promise.all([
+          this.dailyRepo.listSubscriptionMetrics(range),
+          this.dailyRepo.listTrialMetrics(range),
+          this.dailyRepo.listPaymentMetrics(range),
+          this.dailyRepo.listCustomerMetrics(range),
+        ]);
+        return mapDailyUmbrella({
+          subscriptions,
+          trials,
+          payments,
+          customers,
+        });
+      } catch (error) {
+        this.mapRepositoryError(error, "getDailyAnalytics");
       }
     });
   }

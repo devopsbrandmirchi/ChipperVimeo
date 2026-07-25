@@ -6,10 +6,15 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { defaultLogger, type Logger } from "@/processors/logger/logger";
 import { AnalyticsRepository } from "@/modules/analytics/repository/analytics.repository";
+import { DailyMetricsRepository } from "@/modules/analytics/repository/daily-metrics.repository";
 import {
   AnalyticsService,
   type IAnalyticsService,
 } from "@/modules/analytics/service/analytics.service";
+import {
+  MetricsBuilderService,
+  type IMetricsBuilderService,
+} from "@/modules/analytics/metrics-builder/metrics-builder.service";
 import { CustomerRepository } from "@/repositories/customer.repository";
 import { PaymentRepository } from "@/repositories/payment.repository";
 import { ProductRepository } from "@/repositories/product.repository";
@@ -37,6 +42,7 @@ export type ApiServices = {
   timeline: ITimelineService;
   webhookEvents: IWebhookEventService;
   analytics: IAnalyticsService;
+  metricsBuilder: IMetricsBuilderService;
   logger: Logger;
 };
 
@@ -50,6 +56,7 @@ export function createApiServices(logger: Logger = defaultLogger): ApiServices {
   const paymentRepo = new PaymentRepository(client);
   const vottEventRepo = new VottEventRepository(client);
   const analyticsRepo = new AnalyticsRepository(client);
+  const dailyRepo = new DailyMetricsRepository(client);
 
   const customers = new CustomerService(customerRepo, logger);
   const products = new ProductService(productRepo, logger);
@@ -62,7 +69,8 @@ export function createApiServices(logger: Logger = defaultLogger): ApiServices {
   );
   const payments = new PaymentService(paymentRepo, customers, logger);
   const webhookEvents = new WebhookEventService(vottEventRepo, logger);
-  const analytics = new AnalyticsService(analyticsRepo, logger);
+  const analytics = new AnalyticsService(analyticsRepo, dailyRepo, logger);
+  const metricsBuilder = new MetricsBuilderService(dailyRepo, logger);
 
   return {
     customers,
@@ -72,6 +80,7 @@ export function createApiServices(logger: Logger = defaultLogger): ApiServices {
     timeline,
     webhookEvents,
     analytics,
+    metricsBuilder,
     logger,
   };
 }
