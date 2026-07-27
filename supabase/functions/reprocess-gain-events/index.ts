@@ -1,8 +1,10 @@
 /**
  * Supabase Edge Function: reprocess-gain-events
  *
- * Calls the Next.js reprocess API. Keep `limit` small (25–50) — Edge Functions
- * time out around ~60s; each webhook can take hundreds of ms.
+ * Calls the Next.js reprocess API in small batches (max 25) to fit Edge ~60s.
+ *
+ * Cron-friendly: omit startDate/endDate → last 7 UTC days through today.
+ * Schedule every 5–15 minutes until backlog is cleared, then hourly/daily.
  *
  * Secrets (Dashboard → Edge Functions → Secrets):
  *   APP_REPROCESS_URL  = https://chipper-vimeo.vercel.app
@@ -23,22 +25,39 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function utcYmd(d: Date): string {
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
+/** Inclusive window: today UTC back `(days - 1)` days. */
+function defaultUtcRange(days = 7): { startDate: string; endDate: string } {
+  const end = new Date();
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+  return { startDate: utcYmd(start), endDate: utcYmd(end) };
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    // Health / secret check (no side effects)
     if (req.method === "GET") {
       const hasUrl = Boolean(Deno.env.get("APP_REPROCESS_URL"));
       const hasSecret = Boolean(Deno.env.get("REPROCESS_SECRET"));
+      const range = defaultUtcRange(7);
       return json({
         ok: hasUrl && hasSecret,
         hasAppReprocessUrl: hasUrl,
         hasReprocessSecret: hasSecret,
+        defaultRange: range,
         hint: hasUrl && hasSecret
-          ? "Secrets OK. POST with { startDate, endDate, limit: 25 }"
+          ? "Secrets OK. Cron can POST {} or { lookbackDays: 7, limit: 25 }"
           : "Set Edge secrets APP_REPROCESS_URL and REPROCESS_SECRET",
       });
     }
@@ -82,10 +101,15 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Invalid JSON body" }, 400);
     }
 
-    const startDate = String(body.startDate ?? "");
-    const endDate = String(body.endDate ?? body.startDate ?? "");
-    // Cap low for Edge timeout (~60s). Call repeatedly until attempted === 0.
-    const limit = Math.min(Math.max(Number(body.limit) || 25, 1), 100);
+    const lookbackDays = Math.min(
+      Math.max(Number(body.lookbackDays) || 7, 1),
+      90,
+    );
+    const defaults = defaultUtcRange(lookbackDays);
+
+    const startDate = String(body.startDate ?? defaults.startDate);
+    const endDate = String(body.endDate ?? body.startDate ?? defaults.endDate);
+    const limit = Math.min(Math.max(Number(body.limit) || 25, 1), 25);
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
       return json(
@@ -118,15 +142,22 @@ Deno.serve(async (req) => {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      const timedOut =
+        message.toLowerCase().includes("abort") ||
+        message.toLowerCase().includes("timed out");
       return json(
         {
           success: false,
-          error: "Failed to reach app reprocess API",
+          error: timedOut
+            ? "Batch timed out (Edge ~60s limit)"
+            : "Failed to reach app reprocess API",
           detail: message,
           url,
-          hint: "Check APP_REPROCESS_URL, Vercel deploy, and use limit <= 25",
+          hint: timedOut
+            ? "Cron should use limit 25 every few minutes until attempted is 0."
+            : "Check APP_REPROCESS_URL, Vercel deploy, and REPROCESS_SECRET",
         },
-        502,
+        timedOut ? 504 : 502,
       );
     } finally {
       clearTimeout(timer);
@@ -158,6 +189,8 @@ Deno.serve(async (req) => {
           limit,
           startDate,
           endDate,
+          lookbackDays,
+          cronFriendly: true,
         },
       },
       upstream.status >= 100 && upstream.status < 600 ? upstream.status : 502,

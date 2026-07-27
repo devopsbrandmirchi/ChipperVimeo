@@ -1,77 +1,79 @@
-# Reprocess unprocessed gain webhooks (Supabase ops)
+# Reprocess unprocessed gain webhooks (Supabase ops + cron)
 
-Lifecycle handlers live in the Next.js app. Supabase provides **coverage SQL**
-and an **Edge Function** that calls the app reprocess API.
+Lifecycle handlers live in the Next.js app. Supabase provides coverage SQL,
+an Edge Function, and an optional **Cron** job that drains pending events
+25 at a time.
 
 ## 1. Apply migrations
 
 - `024_unprocessed_gain_events_fn.sql`
 - `025_gain_reprocess_ops_functions.sql`
 
-## 2. Inspect coverage (SQL Editor)
+## 2. Secrets
 
-Open [`scripts/reprocess_gain_coverage.sql`](../scripts/reprocess_gain_coverage.sql)
-in **Supabase Dashboard → SQL → New query**, or run:
+### Vercel
 
-```sql
-select * from public.fn_combined_gain_coverage(date '2026-07-24');
+`REPROCESS_SECRET` (16+ chars) → redeploy.
 
-select * from public.fn_unprocessed_gain_event_stats(
-  date '2026-07-24',
-  date '2026-07-24'
-);
-```
-
-## 3. Configure secrets
-
-### Vercel (Next.js app)
-
-```env
-REPROCESS_SECRET=<long-random-string-at-least-16-chars>
-```
-
-### Supabase Edge Function secrets
-
-Dashboard → **Edge Functions** → **Secrets**:
+### Supabase Edge Secrets
 
 | Name | Value |
 |------|--------|
-| `APP_REPROCESS_URL` | `https://chipper-vimeo.vercel.app` (no trailing slash) |
-| `REPROCESS_SECRET` | **same** as Vercel `REPROCESS_SECRET` |
+| `REPROCESS_SECRET` | same as Vercel |
+| `APP_REPROCESS_URL` | `https://chipper-vimeo.vercel.app` |
 
-## 4. Deploy the Edge Function
+## 3. Deploy Edge Function
 
-```bash
-supabase functions deploy reprocess-gain-events
-```
+Dashboard → Edge Functions → deploy `reprocess-gain-events` (paste `index.ts`).
 
-## 5. Invoke from Supabase (repeat until `attempted` is 0)
-
-**Dashboard:** Edge Functions → `reprocess-gain-events` → Invoke with body:
+Cron-friendly body (dates optional):
 
 ```json
-{
-  "startDate": "2026-07-24",
-  "endDate": "2026-07-24",
-  "limit": 25
-}
+{ "lookbackDays": 7, "limit": 25 }
 ```
 
-Use `limit` 25–50. Higher values often hit the Edge ~60s timeout (cryptic 500).
+Omitting dates uses the last 7 UTC days through today. `limit` is hard-capped at 25.
 
-**curl:**
+## 4. Schedule a cron (recommended)
 
-```bash
-curl -X POST "$SUPABASE_URL/functions/v1/reprocess-gain-events" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"startDate":"2026-07-24","endDate":"2026-07-24","limit":500}'
+### Dashboard (easiest)
+
+1. Supabase → **Integrations** → **Cron** → **Create job**
+2. Name: `reprocess-gain-events`
+3. Schedule:
+   - Catch-up: every **5 minutes**
+   - Steady state: every **hour** (`0 * * * *`)
+4. Type: **Supabase Edge Function**
+5. Function: `reprocess-gain-events`
+6. HTTP method: **POST**
+7. Body:
+
+```json
+{ "lookbackDays": 7, "limit": 25 }
 ```
 
-## 6. Verify again in SQL Editor
+8. Save / enable the job
+
+Each run processes up to 25 pending gain events. Repeat runs drain the backlog
+(~300/hour at every 5 minutes).
+
+### SQL alternative
+
+See [`../scripts/schedule_reprocess_gain_cron.sql`](../scripts/schedule_reprocess_gain_cron.sql)
+(requires `pg_cron`, `pg_net`, and Vault secrets `project_url` + `publishable_key`).
+Use `timeout_milliseconds := 60000` — default 5s is too short.
+
+## 5. Verify
 
 ```sql
-select * from public.fn_combined_gain_coverage(date '2026-07-24');
+select * from public.fn_combined_gain_coverage(current_date);
+
+select *
+from public.fn_unprocessed_gain_event_stats(
+  current_date - 7,
+  current_date
+)
+where unprocessed > 0;
 ```
 
-`unprocessed` should trend to `0`; `subscription_events_gain` should approach `vott_gain_events`.
+When `unprocessed` stays near 0, switch cron from every 5 minutes to hourly.
