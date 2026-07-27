@@ -9,6 +9,7 @@ import { PaymentRepository } from "@/repositories/payment.repository";
 import { ProductRepository } from "@/repositories/product.repository";
 import { SubscriptionEventRepository } from "@/repositories/subscription-event.repository";
 import { SubscriptionRepository } from "@/repositories/subscription.repository";
+import { VottEventRepository } from "@/repositories/vott-event.repository";
 import { CustomerService } from "@/services/customer/customer.service";
 import { PaymentService } from "@/services/payment/payment.service";
 import { ProductService } from "@/services/product/product.service";
@@ -28,6 +29,7 @@ export class WebhookProcessingService {
   private readonly logger: Logger;
   private readonly ctx: HandlerContext;
   private readonly timeline: TimelineService;
+  private readonly vottEvents: VottEventRepository;
 
   constructor(options?: {
     client?: SupabaseClient;
@@ -37,6 +39,7 @@ export class WebhookProcessingService {
     const client = options?.client;
     this.router = options?.router ?? new EventRouter();
     this.logger = options?.logger ?? defaultLogger;
+    this.vottEvents = new VottEventRepository(client);
 
     const customerRepo = new CustomerRepository(client);
     const productRepo = new ProductRepository(client);
@@ -139,6 +142,62 @@ export class WebhookProcessingService {
         error: message,
       };
     }
+  }
+
+  /**
+   * Replay gain-topic vott_events that have no subscription_events row.
+   * Idempotent via vott_event_id uniqueness / already_processed check.
+   */
+  async reprocessUnprocessedGainEvents(options: {
+    startDate: string;
+    endDate: string;
+    limit?: number;
+  }): Promise<{
+    startDate: string;
+    endDate: string;
+    attempted: number;
+    processed: number;
+    alreadyProcessed: number;
+    failed: number;
+    skipped: number;
+    failures: Array<{ vottEventId: string; topic: string | null; error: string }>;
+  }> {
+    const events = await this.vottEvents.findUnprocessedGainEvents(options);
+    const failures: Array<{
+      vottEventId: string;
+      topic: string | null;
+      error: string;
+    }> = [];
+    let processed = 0;
+    let alreadyProcessed = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    for (const event of events) {
+      const result = await this.process(event);
+      if (result.status === "processed") processed += 1;
+      else if (result.status === "already_processed") alreadyProcessed += 1;
+      else if (result.status === "skipped") skipped += 1;
+      else {
+        failed += 1;
+        failures.push({
+          vottEventId: result.vottEventId,
+          topic: result.topic,
+          error: result.error ?? "failed",
+        });
+      }
+    }
+
+    return {
+      startDate: options.startDate,
+      endDate: options.endDate,
+      attempted: events.length,
+      processed,
+      alreadyProcessed,
+      failed,
+      skipped,
+      failures: failures.slice(0, 50),
+    };
   }
 }
 

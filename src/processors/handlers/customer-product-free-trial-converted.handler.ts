@@ -35,22 +35,7 @@ export class CustomerProductFreeTrialConvertedHandler implements EventHandler {
       },
     );
 
-    if (hasPrice) {
-      await ctx.payments.recordRenewal({
-        customerId: customer.id,
-        subscriptionId: subscription.id,
-        productId: product.id,
-        vottEventId: event.id,
-        amountCents: priceToCents(extracted.customer.subscription_price),
-        currency: product.currency,
-        paymentDate:
-          stringOrNull(extracted.customer.last_payment_date) ??
-          event.event_created_at,
-        promotionCode: stringOrNull(extracted.customer.promotion_code),
-        nextPaymentDate: stringOrNull(extracted.customer.next_payment_date),
-      });
-    }
-
+    // Timeline first so Gain metrics survive payment write failures.
     await ctx.timeline.recordTrialConverted({
       customerId: customer.id,
       subscriptionId: subscription.id,
@@ -61,7 +46,31 @@ export class CustomerProductFreeTrialConvertedHandler implements EventHandler {
       payload: {
         vimeo_customer_id: extracted.vimeoCustomerId,
         vimeo_product_id: extracted.vimeoProductId,
+        platform: event.platform,
       },
     });
+
+    if (hasPrice) {
+      try {
+        await ctx.payments.recordRenewal({
+          customerId: customer.id,
+          subscriptionId: subscription.id,
+          productId: product.id,
+          vottEventId: event.id,
+          amountCents: priceToCents(extracted.customer.subscription_price),
+          currency: product.currency,
+          paymentDate:
+            stringOrNull(extracted.customer.last_payment_date) ??
+            event.event_created_at,
+          promotionCode: stringOrNull(extracted.customer.promotion_code),
+          nextPaymentDate: stringOrNull(extracted.customer.next_payment_date),
+        });
+      } catch (error) {
+        ctx.logger.warn("free_trial_converted payment write failed", {
+          vottEventId: event.id,
+          error: error instanceof Error ? error.message : "unknown",
+        });
+      }
+    }
   }
 }

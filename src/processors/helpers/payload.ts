@@ -66,13 +66,34 @@ export function optionalVimeoProductId(
   return null;
 }
 
-/** Extract customer (+ first product). Throws ValidationError if customer id missing. */
+/** Extract customer (+ first product). Throws ValidationError if customer id missing.
+ * Falls back to denormalized vott_events columns when embedded payload is thin.
+ */
 export function extractPayload(event: VottEvent): ExtractedPayload {
   const payload = getWebhookPayload(event);
-  const customer = getEmbeddedCustomer(payload);
+  let customer = getEmbeddedCustomer(payload);
+
+  if (!customer && event.customer_id != null) {
+    customer = {
+      id: event.customer_id,
+      email: event.customer_email,
+      name: event.customer_name,
+      platform: event.platform,
+      subscription_status: event.subscription_status,
+    };
+  }
+
   const vimeoCustomerId = requireVimeoCustomerId(customer);
-  const product = getFirstProduct(customer);
-  const vimeoProductId = optionalVimeoProductId(product);
+  let product = getFirstProduct(customer);
+  let vimeoProductId = optionalVimeoProductId(product);
+
+  if ((vimeoProductId === null || !product) && event.product_id != null) {
+    vimeoProductId = event.product_id;
+    product = {
+      id: event.product_id,
+      name: event.product_name,
+    };
+  }
 
   return {
     customer: customer as VimeoCustomer,
