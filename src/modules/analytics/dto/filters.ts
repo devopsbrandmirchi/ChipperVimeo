@@ -83,3 +83,38 @@ export const buildDailyAnalyticsSchema = z
   });
 
 export type BuildDailyAnalyticsInput = z.infer<typeof buildDailyAnalyticsSchema>;
+
+export const subscriptionMetricsPresetSchema = z.enum([
+  "today",
+  "yesterday",
+  "last7",
+  "last30",
+  "custom",
+]);
+
+export const subscriptionMetricsGroupBySchema = z.enum([
+  "day",
+  "platform",
+  "country",
+  "product",
+]);
+
+export const subscriptionMetricsFiltersSchema = z.object({
+  preset: subscriptionMetricsPresetSchema.optional().default("last7"),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  platform: z.string().min(1).optional(),
+  country: z.string().min(1).optional(),
+  productId: z.string().uuid().optional(),
+  groupBy: subscriptionMetricsGroupBySchema.optional().default("day"),
+});
+
+export type SubscriptionMetricsFilters = z.infer<
+  typeof subscriptionMetricsFiltersSchema
+>;

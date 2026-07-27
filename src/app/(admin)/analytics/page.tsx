@@ -1,20 +1,38 @@
+import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { ErrorCard, ModulePlaceholder } from "@/components/common/feedback";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
+import type { SubscriptionMetricsResponse } from "@/modules/analytics/dto/responses";
 import type {
   AnalyticsOverview,
   DimensionSummary,
   RevenueSummary,
 } from "@/services/interfaces/analytics-service.interface";
 
-export default async function AnalyticsPage() {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function first(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+export default async function AnalyticsPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const sp = await searchParams;
+  const preset = first(sp.preset) ?? "last7";
+
   let overview: AnalyticsOverview | null = null;
   let revenue: RevenueSummary | null = null;
   let countries: DimensionSummary | null = null;
   let platforms: DimensionSummary | null = null;
+  let gainLoss: SubscriptionMetricsResponse | null = null;
   let loadError: string | null = null;
+  let gainLossError: string | null = null;
 
   try {
     const [overviewRes, revenueRes, countriesRes, platformsRes] =
@@ -37,6 +55,21 @@ export default async function AnalyticsPage() {
           : "Request failed";
   }
 
+  try {
+    const gainLossRes = await apiGetServer<SubscriptionMetricsResponse>(
+      "/analytics/subscription-metrics",
+      { preset },
+    );
+    gainLoss = gainLossRes.data;
+  } catch (error) {
+    gainLossError =
+      error instanceof ApiClientError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "Failed to load gain/loss metrics";
+  }
+
   if (loadError || !overview || !revenue || !countries || !platforms) {
     return (
       <div className="space-y-6">
@@ -53,15 +86,28 @@ export default async function AnalyticsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Analytics"
-        description="Charts consume analytics endpoints. Calculations remain placeholder-level."
+        description="Gain/loss reporting from subscription_events. Other charts remain snapshot-level."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Analytics" },
         ]}
       />
+
+      {gainLoss ? (
+        <GainLossMetrics data={gainLoss} preset={gainLoss.preset || preset} />
+      ) : (
+        <ErrorCard
+          title="Unable to load gain / loss metrics"
+          message={
+            gainLossError ??
+            "Apply migration 022 and ensure subscription_events are populated."
+          }
+        />
+      )}
+
       <ModulePlaceholder
-        title="Analytics layout"
-        description="Full report builders ship in a later phase. Values below come from existing /api/v1/analytics/* routes."
+        title="Snapshot overview"
+        description="Values below come from existing /api/v1/analytics/* snapshot routes."
       >
         <div className="grid gap-3 text-sm sm:grid-cols-3">
           <Stat label="Active subscribers" value={overview.activeSubscribers} />

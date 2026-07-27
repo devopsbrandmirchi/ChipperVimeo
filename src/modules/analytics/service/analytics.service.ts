@@ -1,6 +1,9 @@
 import type { Logger } from "@/processors/logger/logger";
 import { BaseService } from "@/services/shared/base.service";
-import type { AnalyticsFilters } from "@/modules/analytics/dto/filters";
+import type {
+  AnalyticsFilters,
+  SubscriptionMetricsFilters,
+} from "@/modules/analytics/dto/filters";
 import type {
   AnalyticsOverview,
   ARRResponse,
@@ -16,6 +19,7 @@ import type {
   ProductAnalyticsResponse,
   RevenueResponse,
   SubscriptionAnalyticsResponse,
+  SubscriptionMetricsResponse,
   TrialAnalyticsResponse,
 } from "@/modules/analytics/dto/responses";
 import {
@@ -46,9 +50,14 @@ import {
   mapDailyTrialSeries,
   mapDailyUmbrella,
 } from "@/modules/analytics/mappers/daily.mappers";
+import {
+  mapSubscriptionMetricsResponse,
+  resolveSubscriptionMetricsRange,
+} from "@/modules/analytics/mappers/subscription-metrics.mappers";
 import { listMetrics } from "@/modules/analytics/metrics";
 import { AnalyticsRepository } from "@/modules/analytics/repository/analytics.repository";
 import { DailyMetricsRepository } from "@/modules/analytics/repository/daily-metrics.repository";
+import { SubscriptionMetricsRepository } from "@/modules/analytics/repository/subscription-metrics.repository";
 
 export interface IAnalyticsService {
   getDashboard(): Promise<DashboardResponse>;
@@ -78,6 +87,9 @@ export interface IAnalyticsService {
   getArr(): Promise<ARRResponse>;
   getLtv(): Promise<LTVResponse>;
   getDailyAnalytics(filters?: AnalyticsFilters): Promise<DailyAnalyticsResponse>;
+  getSubscriptionGainLossMetrics(
+    filters?: SubscriptionMetricsFilters,
+  ): Promise<SubscriptionMetricsResponse>;
   refresh(
     target?:
       | "all"
@@ -127,6 +139,7 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
   constructor(
     private readonly repo: AnalyticsRepository,
     private readonly dailyRepo: DailyMetricsRepository,
+    private readonly subscriptionMetricsRepo: SubscriptionMetricsRepository,
     logger: Logger,
   ) {
     super("AnalyticsService", logger);
@@ -341,6 +354,29 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
         });
       } catch (error) {
         this.mapRepositoryError(error, "getDailyAnalytics");
+      }
+    });
+  }
+
+  async getSubscriptionGainLossMetrics(
+    filters: SubscriptionMetricsFilters = {
+      preset: "last7",
+      groupBy: "day",
+    },
+  ): Promise<SubscriptionMetricsResponse> {
+    return this.timed("getSubscriptionGainLossMetrics", async () => {
+      try {
+        const range = resolveSubscriptionMetricsRange(filters);
+        const rows = await this.subscriptionMetricsRepo.listMetrics({
+          startDate: range.startDate,
+          endDate: range.endDate,
+          platform: filters.platform,
+          country: filters.country,
+          productId: filters.productId,
+        });
+        return mapSubscriptionMetricsResponse(rows, range);
+      } catch (error) {
+        this.mapRepositoryError(error, "getSubscriptionGainLossMetrics");
       }
     });
   }

@@ -67,6 +67,18 @@ export class TimelineService extends BaseService implements ITimelineService {
     return this.record("recovered", input);
   }
 
+  async recordSetCancellation(input: TimelineRecordInput) {
+    return this.record("set_cancellation", input);
+  }
+
+  async recordDisabled(input: TimelineRecordInput) {
+    return this.record("disabled", input);
+  }
+
+  async recordTrialExpired(input: TimelineRecordInput) {
+    return this.record("trial_expired", input);
+  }
+
   async getCustomerTimeline(customerId: string): Promise<SubscriptionEvent[]> {
     return this.timed("getCustomerTimeline", async () => {
       try {

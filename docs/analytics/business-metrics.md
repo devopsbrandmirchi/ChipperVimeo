@@ -1,0 +1,50 @@
+# Business Metrics (Gain / Loss)
+
+Authoritative mapping from business KPIs to normalized `subscription_events.event_type` values.
+
+| Business Metric | Normalized Event(s) | Description |
+| --------------- | ------------------- | ----------- |
+| Subscription Gain | `created` (paid only), `trial_converted` | Customer became a paying subscriber |
+| Trial Gain | `trial_started` | Customer started a free trial |
+| Trial Conversion | `trial_converted` | Trial converted to paid |
+| Subscription Loss | `set_cancellation`, `cancelled`, `expired`, `disabled` | Subscription lost, with platform-specific rules |
+| Trial Loss | `trial_expired` | Trial ended without conversion |
+| Combined Gain | Subscription Gain + Trial Gain | Paid starts + new trials |
+| Combined Loss | Subscription Loss + Trial Loss | Lost paid (platform rules) + expired trials |
+| Renewal | `renewed` | Successful recurring renewal |
+| Recovery | `recovered` | Subscription recovered after a failed payment |
+| Charge Failure | `charge_failed` | Payment attempt failed |
+| Pause | `paused` | Subscription paused |
+| Resume | `resumed` | Subscription resumed |
+
+## Rules
+
+### Subscription Gain
+
+- Count `created` **only** when the create path is an immediately active **paid** subscription (not a free trial).
+- Count `trial_converted` as Subscription Gain.
+- Never double-count a trial journey: trial starts use `trial_started` (Trial Gain only); paid Gain is recorded at conversion.
+
+### Trial Gain
+
+- Count `trial_started` only (`free_trial_created`, or `created` routed to trial path).
+
+### Trial Conversion
+
+- Count `trial_converted` only.
+
+### Subscription Loss
+
+- **Web / direct billing:** `set_cancellation`
+- **Store billing (iOS / Android / Apple TV / Fire TV / Google TV / Roku / …):** `cancelled`, `expired`, `disabled`
+
+### Trial Loss
+
+- Count `trial_expired` only (`free_trial_expired`).
+
+### Dates
+
+- Always `subscription_events.event_created_at` (UTC calendar day).
+- Never `subscription_events.created_at` or `vott_events`.
+
+Related: [`event-mapping.md`](event-mapping.md), [`../analytics-business-specification.md`](../analytics-business-specification.md).

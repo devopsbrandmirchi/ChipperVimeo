@@ -11,6 +11,9 @@ import { CustomerProductPausedHandler } from "@/processors/handlers/customer-pro
 import { CustomerProductChargeFailedHandler } from "@/processors/handlers/customer-product-charge-failed.handler";
 import { CustomerProductFreeTrialCreatedHandler } from "@/processors/handlers/customer-product-free-trial-created.handler";
 import { CustomerProductFreeTrialConvertedHandler } from "@/processors/handlers/customer-product-free-trial-converted.handler";
+import { CustomerProductFreeTrialExpiredHandler } from "@/processors/handlers/customer-product-free-trial-expired.handler";
+import { CustomerProductSetCancellationHandler } from "@/processors/handlers/customer-product-set-cancellation.handler";
+import { CustomerProductDisabledHandler } from "@/processors/handlers/customer-product-disabled.handler";
 import { UnknownEventHandler } from "@/processors/handlers/unknown-event.handler";
 
 /**
@@ -37,6 +40,9 @@ export class EventRouter {
         new CustomerProductChargeFailedHandler(),
         new CustomerProductFreeTrialCreatedHandler(),
         new CustomerProductFreeTrialConvertedHandler(),
+        new CustomerProductFreeTrialExpiredHandler(),
+        new CustomerProductSetCancellationHandler(),
+        new CustomerProductDisabledHandler(),
       ] as EventHandler[]);
 
     this.handlers = new Map(list.map((h) => [h.topic, h]));

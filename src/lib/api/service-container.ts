@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { defaultLogger, type Logger } from "@/processors/logger/logger";
 import { AnalyticsRepository } from "@/modules/analytics/repository/analytics.repository";
 import { DailyMetricsRepository } from "@/modules/analytics/repository/daily-metrics.repository";
+import { SubscriptionMetricsRepository } from "@/modules/analytics/repository/subscription-metrics.repository";
 import {
   AnalyticsService,
   type IAnalyticsService,
@@ -57,6 +58,7 @@ export function createApiServices(logger: Logger = defaultLogger): ApiServices {
   const vottEventRepo = new VottEventRepository(client);
   const analyticsRepo = new AnalyticsRepository(client);
   const dailyRepo = new DailyMetricsRepository(client);
+  const subscriptionMetricsRepo = new SubscriptionMetricsRepository(client);
 
   const customers = new CustomerService(customerRepo, logger);
   const products = new ProductService(productRepo, logger);
@@ -69,7 +71,12 @@ export function createApiServices(logger: Logger = defaultLogger): ApiServices {
   );
   const payments = new PaymentService(paymentRepo, customers, logger);
   const webhookEvents = new WebhookEventService(vottEventRepo, logger);
-  const analytics = new AnalyticsService(analyticsRepo, dailyRepo, logger);
+  const analytics = new AnalyticsService(
+    analyticsRepo,
+    dailyRepo,
+    subscriptionMetricsRepo,
+    logger,
+  );
   const metricsBuilder = new MetricsBuilderService(dailyRepo, logger);
 
   return {

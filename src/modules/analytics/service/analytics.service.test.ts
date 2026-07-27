@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AnalyticsService } from "@/modules/analytics/service/analytics.service";
 import type { AnalyticsRepository } from "@/modules/analytics/repository/analytics.repository";
 import type { DailyMetricsRepository } from "@/modules/analytics/repository/daily-metrics.repository";
+import type { SubscriptionMetricsRepository } from "@/modules/analytics/repository/subscription-metrics.repository";
 import { Logger } from "@/processors/logger/logger";
 
 function mockRepo(
@@ -95,18 +96,51 @@ function mockDailyRepo(
   } as unknown as DailyMetricsRepository;
 }
 
-describe("AnalyticsService", () => {
-  const logger = new Logger({ service: "test" });
+function mockSubscriptionMetricsRepo(
+  overrides: Partial<SubscriptionMetricsRepository> = {},
+): SubscriptionMetricsRepository {
+  return {
+    listMetrics: vi.fn().mockResolvedValue([
+      {
+        report_date: "2026-07-20",
+        platform: "Web",
+        country: "US",
+        product_id: "11111111-1111-1111-1111-111111111111",
+        subscription_gain: 2,
+        subscription_loss: 1,
+        trial_gain: 3,
+        trial_loss: 1,
+        trial_conversion: 1,
+        combined_gain: 5,
+        combined_loss: 2,
+        unique_customers_gain: 4,
+        unique_customers_loss: 2,
+      },
+    ]),
+    ...overrides,
+  } as unknown as SubscriptionMetricsRepository;
+}
 
+const logger = new Logger({ service: "test" });
+
+function createService(
+  repo = mockRepo(),
+  daily = mockDailyRepo(),
+  subMetrics = mockSubscriptionMetricsRepo(),
+) {
+  return new AnalyticsService(repo, daily, subMetrics, logger);
+}
+
+describe("AnalyticsService", () => {
   it("returns dashboard KPIs from repository", async () => {
-    const service = new AnalyticsService(mockRepo(), mockDailyRepo(), logger);
+    const service = createService();
     const dashboard = await service.getDashboard();
     expect(dashboard.activeSubscribers).toBe(4);
     expect(dashboard.mrrCents).toBe(100);
   });
 
   it("builds Phase 8 compatible overview", async () => {
-    const service = new AnalyticsService(mockRepo(), mockDailyRepo(), logger);
+    const service = createService();
     const overview = await service.getOverview();
     expect(overview.activeSubscribers).toBe(4);
     expect(overview.revenue.revenueCents).toBe(500);
@@ -114,7 +148,7 @@ describe("AnalyticsService", () => {
 
   it("refresh delegates to repository", async () => {
     const repo = mockRepo();
-    const service = new AnalyticsService(repo, mockDailyRepo(), logger);
+    const service = createService(repo);
     const result = await service.refresh("dashboard");
     expect(repo.refresh).toHaveBeenCalledWith("dashboard");
     expect(result.ok).toBe(true);
@@ -122,7 +156,7 @@ describe("AnalyticsService", () => {
 
   it("uses daily snapshots when date range is provided", async () => {
     const daily = mockDailyRepo();
-    const service = new AnalyticsService(mockRepo(), daily, logger);
+    const service = createService(mockRepo(), daily);
     const data = await service.getSubscriptionAnalytics({
       dateFrom: "2026-07-01",
       dateTo: "2026-07-01",
@@ -134,12 +168,26 @@ describe("AnalyticsService", () => {
 
   it("uses daily payment snapshots for historical revenue", async () => {
     const daily = mockDailyRepo();
-    const service = new AnalyticsService(mockRepo(), daily, logger);
+    const service = createService(mockRepo(), daily);
     const data = await service.getRevenue({
       dateFrom: "2026-07-01",
       dateTo: "2026-07-01",
     });
     expect(daily.listPaymentMetrics).toHaveBeenCalled();
     expect(data.totalRevenueCents).toBe(900);
+  });
+
+  it("returns subscription gain/loss metrics from subscription_events RPC", async () => {
+    const subMetrics = mockSubscriptionMetricsRepo();
+    const service = createService(mockRepo(), mockDailyRepo(), subMetrics);
+    const data = await service.getSubscriptionGainLossMetrics({
+      preset: "last7",
+      groupBy: "day",
+    });
+    expect(subMetrics.listMetrics).toHaveBeenCalled();
+    expect(data.source).toBe("subscription_events");
+    expect(data.totals.subscriptionGain).toBe(2);
+    expect(data.totals.trialGain).toBe(3);
+    expect(data.byPlatform.some((r) => r.key === "TOTAL")).toBe(true);
   });
 });

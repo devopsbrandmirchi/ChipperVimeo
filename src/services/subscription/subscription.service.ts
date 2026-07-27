@@ -136,6 +136,44 @@ export class SubscriptionService
     );
   }
 
+  async setCancellation(input: SubscriptionLifecycleInput) {
+    const at = this.coalesceTimestamp(input.eventCreatedAt);
+    return this.applyLifecycle(
+      input,
+      {
+        status: input.vimeoCustomer.subscription_status ?? "cancelled",
+        cancelledAt: at,
+      },
+      (i) => this.timeline.recordSetCancellation(i),
+    );
+  }
+
+  async disable(input: SubscriptionLifecycleInput) {
+    const at = this.coalesceTimestamp(input.eventCreatedAt);
+    return this.applyLifecycle(
+      input,
+      {
+        status: input.vimeoCustomer.subscription_status ?? "disabled",
+        cancelledAt: at,
+      },
+      (i) => this.timeline.recordDisabled(i),
+    );
+  }
+
+  async expireTrial(input: SubscriptionLifecycleInput) {
+    const at = this.coalesceTimestamp(input.eventCreatedAt);
+    return this.applyLifecycle(
+      input,
+      {
+        status: input.vimeoCustomer.subscription_status ?? "expired",
+        freeTrial: false,
+        freeTrialEnd: at,
+        expiredAt: at,
+      },
+      (i) => this.timeline.recordTrialExpired(i),
+    );
+  }
+
   async updateSnapshot(input: SubscriptionLifecycleInput) {
     return this.applyLifecycle(input, {}, (i) => this.timeline.recordUpdated(i));
   }

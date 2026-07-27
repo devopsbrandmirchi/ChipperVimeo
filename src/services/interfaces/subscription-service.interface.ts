@@ -34,6 +34,15 @@ export interface ISubscriptionService {
   convertTrial(
     input: SubscriptionLifecycleInput,
   ): Promise<SubscriptionMutationResult>;
+  setCancellation(
+    input: SubscriptionLifecycleInput,
+  ): Promise<SubscriptionMutationResult>;
+  disable(
+    input: SubscriptionLifecycleInput,
+  ): Promise<SubscriptionMutationResult>;
+  expireTrial(
+    input: SubscriptionLifecycleInput,
+  ): Promise<SubscriptionMutationResult>;
   updateSnapshot(
     input: SubscriptionLifecycleInput,
   ): Promise<SubscriptionMutationResult>;

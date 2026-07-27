@@ -29,6 +29,13 @@ export interface ITimelineService {
     input: TimelineRecordInput,
   ): Promise<SubscriptionEvent | null>;
   recordRecovered(input: TimelineRecordInput): Promise<SubscriptionEvent | null>;
+  recordSetCancellation(
+    input: TimelineRecordInput,
+  ): Promise<SubscriptionEvent | null>;
+  recordDisabled(input: TimelineRecordInput): Promise<SubscriptionEvent | null>;
+  recordTrialExpired(
+    input: TimelineRecordInput,
+  ): Promise<SubscriptionEvent | null>;
 
   getCustomerTimeline(customerId: string): Promise<SubscriptionEvent[]>;
 }

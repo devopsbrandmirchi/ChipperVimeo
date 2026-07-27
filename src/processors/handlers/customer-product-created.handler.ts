@@ -2,13 +2,17 @@ import type {
   EventHandler,
   HandlerContext,
 } from "@/processors/types/event-handler.interface";
-import { extractPayload } from "@/processors/helpers/payload";
+import { extractPayload, isFreeTrialCustomer } from "@/processors/helpers/payload";
 import {
   toLifecycleInput,
   upsertCustomerAndProduct,
 } from "@/processors/helpers/handler-support";
 import type { VottEvent } from "@/types/vimeo";
 
+/**
+ * Paid create → `created` (Subscription Gain).
+ * Trial create → `trial_started` (Trial Gain only) — never double-count as paid Gain.
+ */
 export class CustomerProductCreatedHandler implements EventHandler {
   readonly topic = "customer.product.created";
 
@@ -19,8 +23,11 @@ export class CustomerProductCreatedHandler implements EventHandler {
       extracted,
       event,
     );
-    await ctx.subscriptions.create(
-      toLifecycleInput(event, extracted, customer, product),
-    );
+    const input = toLifecycleInput(event, extracted, customer, product);
+    if (isFreeTrialCustomer(extracted.customer)) {
+      await ctx.subscriptions.startTrial(input);
+      return;
+    }
+    await ctx.subscriptions.create(input);
   }
 }

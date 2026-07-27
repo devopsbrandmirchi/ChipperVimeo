@@ -100,3 +100,22 @@ export function stringOrNull(value: unknown): string | null {
 export function boolOrNull(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
+
+/**
+ * Detect free-trial entitlement on a Vimeo customer payload.
+ * Used so customer.product.created routes to trial path (not paid Gain).
+ */
+export function isFreeTrialCustomer(customer: VimeoCustomer): boolean {
+  const status = stringOrNull(customer.subscription_status)?.toLowerCase() ?? "";
+  if (
+    status.includes("trial") ||
+    status === "free_trial" ||
+    status === "freetrial"
+  ) {
+    return true;
+  }
+  const flag = (customer as Record<string, unknown>).free_trial;
+  if (flag === true || flag === "true" || flag === 1) return true;
+  return false;
+}
+

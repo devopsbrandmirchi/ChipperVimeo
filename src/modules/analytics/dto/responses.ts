@@ -209,6 +209,41 @@ export type DailyAnalyticsResponse = {
   source: "daily_snapshots";
 };
 
+/** Gain/loss reporting from subscription_events (Phase 9.5). */
+export type SubscriptionGainLossTotals = {
+  subscriptionGain: number;
+  subscriptionLoss: number;
+  trialGain: number;
+  trialLoss: number;
+  trialConversion: number;
+  combinedGain: number;
+  combinedLoss: number;
+  uniqueCustomersGain: number;
+  uniqueCustomersLoss: number;
+  conversionRate: number;
+};
+
+export type SubscriptionGainLossRow = SubscriptionGainLossTotals & {
+  key: string;
+  label: string;
+  reportDate?: string;
+  platform?: string;
+  country?: string;
+  productId?: string;
+};
+
+export type SubscriptionMetricsResponse = {
+  startDate: string;
+  endDate: string;
+  preset: string;
+  totals: SubscriptionGainLossTotals;
+  series: SubscriptionGainLossRow[];
+  byPlatform: SubscriptionGainLossRow[];
+  byCountry: SubscriptionGainLossRow[];
+  byProduct: SubscriptionGainLossRow[];
+  source: "subscription_events";
+};
+
 /** Phase 8 compatible overview shape (additive fields allowed later). */
 export type AnalyticsOverview = {
   activeSubscribers: number;
