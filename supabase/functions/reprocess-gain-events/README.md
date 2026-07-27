@@ -53,9 +53,11 @@ supabase functions deploy reprocess-gain-events
 {
   "startDate": "2026-07-24",
   "endDate": "2026-07-24",
-  "limit": 500
+  "limit": 25
 }
 ```
+
+Use `limit` 25–50. Higher values often hit the Edge ~60s timeout (cryptic 500).
 
 **curl:**
 

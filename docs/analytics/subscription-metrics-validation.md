@@ -114,7 +114,8 @@ select * from public.fn_combined_gain_coverage(date '2026-07-24');
 
 3. Deploy Edge Function `reprocess-gain-events` (see `supabase/functions/reprocess-gain-events/README.md`).
 4. Set matching `REPROCESS_SECRET` on Vercel and Supabase Edge secrets; set `APP_REPROCESS_URL` to the app URL.
-5. Invoke the Edge Function (Dashboard or curl) in batches until `attempted` is 0.
+5. Invoke the Edge Function (Dashboard or curl) in **small batches** (`limit`: 25–50) until `attempted` is 0.
+   Large limits (500) often time out on Edge (~60s) and show a cryptic 500.
 6. Re-run coverage SQL.
 
 Script: [`supabase/scripts/reprocess_gain_coverage.sql`](../../supabase/scripts/reprocess_gain_coverage.sql).
