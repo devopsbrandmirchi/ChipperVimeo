@@ -101,17 +101,23 @@ where (v.event_created_at at time zone 'utc')::date = date '2026-07-24'
 group by 1;
 ```
 
-### Reprocess (ADMIN)
+### Reprocess (Supabase platform)
 
-1. Apply migration `024_unprocessed_gain_events_fn.sql`.
-2. Call repeatedly until `attempted` is 0:
+Handlers cannot run inside Postgres. Ops flow:
 
-```http
-POST /api/v1/webhook-events/reprocess
-{ "startDate": "2026-07-24", "endDate": "2026-07-24", "limit": 500 }
+1. Apply migrations `024` + `025`.
+2. In **SQL Editor**, inspect coverage:
+
+```sql
+select * from public.fn_combined_gain_coverage(date '2026-07-24');
 ```
 
-Handlers now fall back to denormalized `vott_events.product_id` / customer columns when the embedded payload is thin, and `free_trial_converted` writes the timeline before payment.
+3. Deploy Edge Function `reprocess-gain-events` (see `supabase/functions/reprocess-gain-events/README.md`).
+4. Set matching `REPROCESS_SECRET` on Vercel and Supabase Edge secrets; set `APP_REPROCESS_URL` to the app URL.
+5. Invoke the Edge Function (Dashboard or curl) in batches until `attempted` is 0.
+6. Re-run coverage SQL.
+
+Script: [`supabase/scripts/reprocess_gain_coverage.sql`](../../supabase/scripts/reprocess_gain_coverage.sql).
 
 ---
 
