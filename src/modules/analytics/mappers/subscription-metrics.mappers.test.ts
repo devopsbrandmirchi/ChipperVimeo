@@ -55,6 +55,17 @@ describe("resolveSubscriptionMetricsRange", () => {
       preset: "custom",
     });
   });
+
+  it("swaps inverted custom dates", () => {
+    const range = resolveSubscriptionMetricsRange({
+      preset: "custom",
+      startDate: "2026-07-10",
+      endDate: "2026-07-01",
+      groupBy: "day",
+    });
+    expect(range.startDate).toBe("2026-07-01");
+    expect(range.endDate).toBe("2026-07-10");
+  });
 });
 
 describe("mapSubscriptionMetricsResponse", () => {

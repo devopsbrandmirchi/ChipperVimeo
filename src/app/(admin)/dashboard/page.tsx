@@ -26,6 +26,8 @@ export default async function DashboardPage({
 }) {
   const sp = await searchParams;
   const preset = first(sp.preset) ?? "last7";
+  const startDate = first(sp.startDate);
+  const endDate = first(sp.endDate);
 
   let overview: AnalyticsOverview | null = null;
   let revenue: RevenueSummary | null = null;
@@ -41,7 +43,11 @@ export default async function DashboardPage({
         apiGetServer<Customer[]>("/customers", { page: 1, pageSize: 1 }),
         apiGetServer<SubscriptionMetricsResponse>(
           "/analytics/subscription-metrics",
-          { preset },
+          {
+            preset: startDate || endDate ? "custom" : preset,
+            startDate,
+            endDate,
+          },
         ).catch(() => null),
       ]);
     overview = overviewRes.data;

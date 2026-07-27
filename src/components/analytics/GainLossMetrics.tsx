@@ -1,19 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-
 import { MetricCard, StatCard } from "@/components/cards/MetricCard";
-import { Button } from "@/components/ui/button";
+import { DateRangeFilter } from "@/components/analytics/DateRangeFilter";
 import { cn } from "@/lib/utils";
 import type { SubscriptionMetricsResponse } from "@/modules/analytics/dto/responses";
-
-const PRESETS = [
-  { id: "today", label: "Today" },
-  { id: "yesterday", label: "Yesterday" },
-  { id: "last7", label: "Last 7" },
-  { id: "last30", label: "Last 30" },
-] as const;
 
 function fmt(n: number): string {
   return n.toLocaleString();
@@ -26,7 +16,6 @@ export function GainLossMetrics({
   data: SubscriptionMetricsResponse;
   preset: string;
 }) {
-  const pathname = usePathname();
   const t = data.totals;
 
   return (
@@ -37,27 +26,14 @@ export function GainLossMetrics({
             Subscription &amp; trial gain / loss
           </h2>
           <p className="text-sm text-[var(--muted-foreground)]">
-            {data.startDate} → {data.endDate} (UTC) · source:{" "}
-            {data.source}
+            {data.startDate} → {data.endDate} (UTC) · source: {data.source}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {PRESETS.map((p) => (
-            <Button
-              key={p.id}
-              asChild
-              size="sm"
-              variant={preset === p.id ? "default" : "outline"}
-            >
-              <Link
-                href={`${pathname}?preset=${p.id}`}
-                className={cn(preset === p.id && "pointer-events-none")}
-              >
-                {p.label}
-              </Link>
-            </Button>
-          ))}
-        </div>
+        <DateRangeFilter
+          preset={preset}
+          startDate={data.startDate}
+          endDate={data.endDate}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -25,6 +25,8 @@ export default async function AnalyticsPage({
 }) {
   const sp = await searchParams;
   const preset = first(sp.preset) ?? "last7";
+  const startDate = first(sp.startDate);
+  const endDate = first(sp.endDate);
 
   let overview: AnalyticsOverview | null = null;
   let revenue: RevenueSummary | null = null;
@@ -58,7 +60,11 @@ export default async function AnalyticsPage({
   try {
     const gainLossRes = await apiGetServer<SubscriptionMetricsResponse>(
       "/analytics/subscription-metrics",
-      { preset },
+      {
+        preset: startDate || endDate ? "custom" : preset,
+        startDate,
+        endDate,
+      },
     );
     gainLoss = gainLossRes.data;
   } catch (error) {

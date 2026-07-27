@@ -24,8 +24,13 @@ export function resolveSubscriptionMetricsRange(
   const preset = filters.preset ?? "last7";
 
   if (preset === "custom" || filters.startDate || filters.endDate) {
-    const start = filters.startDate ?? filters.endDate ?? todayStr;
-    const end = filters.endDate ?? filters.startDate ?? todayStr;
+    let start = filters.startDate ?? filters.endDate ?? todayStr;
+    let end = filters.endDate ?? filters.startDate ?? todayStr;
+    if (start > end) {
+      const tmp = start;
+      start = end;
+      end = tmp;
+    }
     return { startDate: start, endDate: end, preset: "custom" };
   }
 
