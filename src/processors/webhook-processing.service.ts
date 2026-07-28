@@ -152,7 +152,35 @@ export class WebhookProcessingService {
     startDate: string;
     endDate: string;
     limit?: number;
+  }) {
+    return this.reprocessUnprocessedEvents({
+      ...options,
+      kind: "gain",
+    });
+  }
+
+  /**
+   * Replay loss-topic vott_events (set_cancellation / cancelled / expired /
+   * disabled / free_trial_expired) with no subscription_events row.
+   */
+  async reprocessUnprocessedLossEvents(options: {
+    startDate: string;
+    endDate: string;
+    limit?: number;
+  }) {
+    return this.reprocessUnprocessedEvents({
+      ...options,
+      kind: "loss",
+    });
+  }
+
+  private async reprocessUnprocessedEvents(options: {
+    startDate: string;
+    endDate: string;
+    limit?: number;
+    kind: "gain" | "loss";
   }): Promise<{
+    kind: "gain" | "loss";
     startDate: string;
     endDate: string;
     attempted: number;
@@ -162,7 +190,11 @@ export class WebhookProcessingService {
     skipped: number;
     failures: Array<{ vottEventId: string; topic: string | null; error: string }>;
   }> {
-    const events = await this.vottEvents.findUnprocessedGainEvents(options);
+    const events =
+      options.kind === "loss"
+        ? await this.vottEvents.findUnprocessedLossEvents(options)
+        : await this.vottEvents.findUnprocessedGainEvents(options);
+
     const failures: Array<{
       vottEventId: string;
       topic: string | null;
@@ -189,6 +221,7 @@ export class WebhookProcessingService {
     }
 
     return {
+      kind: options.kind,
       startDate: options.startDate,
       endDate: options.endDate,
       attempted: events.length,

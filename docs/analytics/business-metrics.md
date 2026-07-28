@@ -35,8 +35,9 @@ Authoritative mapping from business KPIs to normalized `subscription_events.even
 
 ### Subscription Loss
 
-- **Web / direct billing:** `set_cancellation`
-- **Store billing (iOS / Android / Apple TV / Fire TV / Google TV / Roku / …):** `cancelled`, `expired`, `disabled`
+- **Web** (`normalize_report_platform` = Web, including `api`/`vhx` aliases): `set_cancellation` only
+- **Non-Web** (iOS, Android, TV platforms, OTHER, …): `cancelled`, `expired`, `disabled`
+- Platform prefers `vott_events.platform` (event-time), then event payload, then `customers.platform`
 
 ### Trial Loss
 

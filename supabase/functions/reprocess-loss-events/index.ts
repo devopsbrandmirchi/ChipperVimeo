@@ -1,14 +1,15 @@
 /**
- * Supabase Edge Function: reprocess-gain-events
+ * Supabase Edge Function: reprocess-loss-events
  *
- * Calls the Next.js reprocess API in small batches (max 25) to fit Edge ~60s.
+ * Calls Next.js reprocess API with kind=loss (set_cancellation / cancelled /
+ * expired / disabled / free_trial_expired). Max limit 25 for Edge ~60s.
  *
- * Cron-friendly: omit startDate/endDate → last 7 UTC days through today.
- * Schedule every 5–15 minutes until backlog is cleared, then hourly/daily.
+ * Secrets (same as gain):
+ *   APP_REPROCESS_URL, REPROCESS_SECRET
  *
- * Secrets (Dashboard → Edge Functions → Secrets):
- *   APP_REPROCESS_URL  = https://chipper-vimeo.vercel.app
- *   REPROCESS_SECRET   = same as Vercel REPROCESS_SECRET (min 16 chars)
+ * Cron body example:
+ *   { "startDate": "2026-07-21", "endDate": "2026-07-28", "limit": 25 }
+ * Or omit dates → last 7 UTC days.
  */
 
 const corsHeaders: Record<string, string> = {
@@ -33,7 +34,6 @@ function utcYmd(d: Date): string {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
-/** Inclusive window: today UTC back `(days - 1)` days. */
 function defaultUtcRange(days = 7): { startDate: string; endDate: string } {
   const end = new Date();
   const start = new Date(end);
@@ -50,15 +50,13 @@ Deno.serve(async (req) => {
     if (req.method === "GET") {
       const hasUrl = Boolean(Deno.env.get("APP_REPROCESS_URL"));
       const hasSecret = Boolean(Deno.env.get("REPROCESS_SECRET"));
-      const range = defaultUtcRange(7);
       return json({
         ok: hasUrl && hasSecret,
+        kind: "loss",
         hasAppReprocessUrl: hasUrl,
         hasReprocessSecret: hasSecret,
-        defaultRange: range,
-        hint: hasUrl && hasSecret
-          ? "Secrets OK. Cron can POST {} or { lookbackDays: 7, limit: 25 }"
-          : "Set Edge secrets APP_REPROCESS_URL and REPROCESS_SECRET",
+        defaultRange: defaultUtcRange(7),
+        hint: "POST { startDate, endDate, limit: 25 } or { lookbackDays: 7 }",
       });
     }
 
@@ -66,28 +64,16 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Method not allowed" }, 405);
     }
 
-    const appBaseRaw = Deno.env.get("APP_REPROCESS_URL") ?? "";
-    const appBase = appBaseRaw.replace(/\/$/, "").trim();
+    const appBase = (Deno.env.get("APP_REPROCESS_URL") ?? "")
+      .replace(/\/$/, "")
+      .trim();
     const secret = (Deno.env.get("REPROCESS_SECRET") ?? "").trim();
 
-    if (!appBase || !secret) {
+    if (!appBase || !secret || secret.length < 16) {
       return json(
         {
           success: false,
-          error: "Missing Edge secrets",
-          hasAppReprocessUrl: Boolean(appBase),
-          hasReprocessSecret: Boolean(secret),
-          fix: "Dashboard → Edge Functions → Secrets → add APP_REPROCESS_URL and REPROCESS_SECRET",
-        },
-        500,
-      );
-    }
-
-    if (secret.length < 16) {
-      return json(
-        {
-          success: false,
-          error: "REPROCESS_SECRET must be at least 16 characters",
+          error: "Missing or short Edge secrets APP_REPROCESS_URL / REPROCESS_SECRET",
         },
         500,
       );
@@ -106,20 +92,19 @@ Deno.serve(async (req) => {
       90,
     );
     const defaults = defaultUtcRange(lookbackDays);
-
     const startDate = String(body.startDate ?? defaults.startDate);
     const endDate = String(body.endDate ?? body.startDate ?? defaults.endDate);
     const limit = Math.min(Math.max(Number(body.limit) || 25, 1), 25);
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(endDate)
+    ) {
       return json(
-        { success: false, error: "startDate required as YYYY-MM-DD" },
-        400,
-      );
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
-      return json(
-        { success: false, error: "endDate required as YYYY-MM-DD" },
+        {
+          success: false,
+          error: "startDate/endDate required as YYYY-MM-DD",
+        },
         400,
       );
     }
@@ -138,7 +123,7 @@ Deno.serve(async (req) => {
           "x-reprocess-secret": secret,
         },
         body: JSON.stringify({
-          kind: "gain",
+          kind: "loss",
           startDate,
           endDate,
           limit,
@@ -147,9 +132,7 @@ Deno.serve(async (req) => {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const timedOut =
-        message.toLowerCase().includes("abort") ||
-        message.toLowerCase().includes("timed out");
+      const timedOut = message.toLowerCase().includes("abort");
       return json(
         {
           success: false,
@@ -157,10 +140,7 @@ Deno.serve(async (req) => {
             ? "Batch timed out (Edge ~60s limit)"
             : "Failed to reach app reprocess API",
           detail: message,
-          url,
-          hint: timedOut
-            ? "Cron should use limit 25 every few minutes until attempted is 0."
-            : "Check APP_REPROCESS_URL, Vercel deploy, and REPROCESS_SECRET",
+          hint: "Use limit 25 and invoke repeatedly until attempted is 0",
         },
         timedOut ? 504 : 502,
       );
@@ -172,16 +152,14 @@ Deno.serve(async (req) => {
     let parsed: Record<string, unknown>;
     try {
       const value = JSON.parse(text) as unknown;
-      if (value && typeof value === "object" && !Array.isArray(value)) {
-        parsed = value as Record<string, unknown>;
-      } else {
-        parsed = { success: upstream.ok, data: value };
-      }
+      parsed =
+        value && typeof value === "object" && !Array.isArray(value)
+          ? (value as Record<string, unknown>)
+          : { success: upstream.ok, data: value };
     } catch {
       parsed = {
         success: false,
         error: "App returned non-JSON",
-        status: upstream.status,
         bodyPreview: text.slice(0, 500),
       };
     }
@@ -190,12 +168,11 @@ Deno.serve(async (req) => {
       {
         ...parsed,
         _meta: {
+          kind: "loss",
           upstreamStatus: upstream.status,
           limit,
           startDate,
           endDate,
-          lookbackDays,
-          cronFriendly: true,
         },
       },
       upstream.status >= 100 && upstream.status < 600 ? upstream.status : 502,

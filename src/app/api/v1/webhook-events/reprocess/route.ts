@@ -10,6 +10,7 @@ import { defaultLogger } from "@/processors/logger/logger";
 import { WebhookProcessingService } from "@/processors/webhook-processing.service";
 
 const bodySchema = z.object({
+  kind: z.enum(["gain", "loss"]).optional().default("gain"),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   limit: z.coerce.number().int().min(1).max(2000).optional().default(500),
@@ -29,21 +30,25 @@ async function runReprocess(
   const processor = new WebhookProcessingService({
     client: createServiceClient(),
   });
-  const data = await processor.reprocessUnprocessedGainEvents(body);
-  return successResponse(data, "Gain-event reprocess batch finished", {
-    requestId,
-  });
+  const data =
+    body.kind === "loss"
+      ? await processor.reprocessUnprocessedLossEvents(body)
+      : await processor.reprocessUnprocessedGainEvents(body);
+  return successResponse(
+    data,
+    body.kind === "loss"
+      ? "Loss-event reprocess batch finished"
+      : "Gain-event reprocess batch finished",
+    { requestId },
+  );
 }
 
 /**
  * ADMIN session or Edge Function (`x-reprocess-secret`):
- * replay gain-topic vott_events with no subscription_events row.
+ * replay unprocessed gain or loss vott_events into subscription_events.
  *
  * POST /api/v1/webhook-events/reprocess
- * Body: { startDate, endDate, limit? }
- *
- * Prefer Supabase Edge Function `reprocess-gain-events` from the Dashboard.
- * Call repeatedly until attempted === 0.
+ * Body: { kind?: "gain"|"loss", startDate, endDate, limit? }
  */
 export async function POST(
   request: NextRequest,
@@ -53,7 +58,6 @@ export async function POST(
     request.headers.get("x-request-id") ?? crypto.randomUUID();
   const providedSecret = request.headers.get("x-reprocess-secret");
 
-  // Edge Function / ops path: header present ⇒ do not fall through to cookie auth.
   if (providedSecret) {
     if (!hasValidReprocessSecret(request)) {
       return Response.json(

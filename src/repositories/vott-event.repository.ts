@@ -142,6 +142,25 @@ export class VottEventRepository extends BaseRepository<
   }
 
   /**
+   * Loss-topic webhooks in a UTC event_created_at range with no subscription_events row.
+   * Requires migration 026 (`fn_unprocessed_loss_events`).
+   */
+  async findUnprocessedLossEvents(options: {
+    startDate: string;
+    endDate: string;
+    limit?: number;
+  }): Promise<VottEvent[]> {
+    const limit = Math.min(options.limit ?? 500, 2000);
+    const { data, error } = await this.db().rpc("fn_unprocessed_loss_events", {
+      p_start_date: options.startDate,
+      p_end_date: options.endDate,
+      p_limit: limit,
+    });
+    if (error) this.throwMapped(error, "findUnprocessedLossEvents");
+    return (data as VottEvent[]) ?? [];
+  }
+
+  /**
    * Failure state cannot be stored without schema columns.
    * Always returns an empty list until a future migration adds processing_status.
    */

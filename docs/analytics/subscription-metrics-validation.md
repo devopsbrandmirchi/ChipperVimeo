@@ -101,24 +101,19 @@ where (v.event_created_at at time zone 'utc')::date = date '2026-07-24'
 group by 1;
 ```
 
-### Reprocess (Supabase platform)
+### Reprocess Loss (same pattern as Gain)
 
-Handlers cannot run inside Postgres. Ops flow:
-
-1. Apply migrations `024` + `025`.
-2. In **SQL Editor**, inspect coverage:
+1. Apply migration `026_subscription_loss_reprocess.sql`.
+2. Deploy Edge Function `reprocess-loss-events` (see `supabase/functions/reprocess-loss-events/README.md`).
+3. Schedule cron every 5 minutes with body including `startDate` / `endDate` (or lookback).
+4. Coverage:
 
 ```sql
-select * from public.fn_combined_gain_coverage(date '2026-07-24');
+select * from public.fn_combined_loss_coverage(date '2026-07-24');
 ```
 
-3. Deploy Edge Function `reprocess-gain-events` (see `supabase/functions/reprocess-gain-events/README.md`).
-4. Set matching `REPROCESS_SECRET` on Vercel and Supabase Edge secrets; set `APP_REPROCESS_URL` to the app URL.
-5. Invoke the Edge Function (Dashboard or curl) in **small batches** (`limit`: 25–50) until `attempted` is 0.
-   Large limits (500) often time out on Edge (~60s) and show a cryptic 500.
-6. Re-run coverage SQL.
-
-Script: [`supabase/scripts/reprocess_gain_coverage.sql`](../../supabase/scripts/reprocess_gain_coverage.sql).
+Loss topics: `set_cancellation`, `cancelled`, `expired`, `disabled`, `free_trial_expired`.
+Dashboard Combined Loss = subscription loss (platform rules) + trial loss.
 
 ---
 
