@@ -212,10 +212,11 @@ export class WebhookProcessingService {
       else if (result.status === "skipped") skipped += 1;
       else {
         failed += 1;
+        const errMsg = result.error ?? "failed";
         failures.push({
           vottEventId: result.vottEventId,
           topic: result.topic,
-          error: result.error ?? "failed",
+          error: errMsg.length > 500 ? `${errMsg.slice(0, 500)}…` : errMsg,
         });
       }
     }

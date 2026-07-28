@@ -41,6 +41,33 @@ export function getFirstProduct(
   return products[0] ?? null;
 }
 
+/** Also look for product on payload root / alternate embeds (loss webhooks vary). */
+export function findProductAnywhere(
+  payload: VimeoWebhookPayload,
+  customer: VimeoCustomer | null,
+): VimeoProduct | null {
+  const fromCustomer = getFirstProduct(customer);
+  if (fromCustomer) return fromCustomer;
+
+  const embedded = asRecord(payload._embedded);
+  if (embedded) {
+    const direct = asRecord(embedded.product);
+    if (direct && (direct.id != null || direct.name != null)) {
+      return direct as VimeoProduct;
+    }
+    const products = embedded.products;
+    if (Array.isArray(products) && products.length > 0) {
+      return products[0] as VimeoProduct;
+    }
+  }
+
+  const rootProduct = asRecord((payload as Record<string, unknown>).product);
+  if (rootProduct && (rootProduct.id != null || rootProduct.name != null)) {
+    return rootProduct as VimeoProduct;
+  }
+  return null;
+}
+
 export function requireVimeoCustomerId(
   customer: VimeoCustomer | null,
 ): number {
@@ -84,7 +111,7 @@ export function extractPayload(event: VottEvent): ExtractedPayload {
   }
 
   const vimeoCustomerId = requireVimeoCustomerId(customer);
-  let product = getFirstProduct(customer);
+  let product = findProductAnywhere(payload, customer);
   let vimeoProductId = optionalVimeoProductId(product);
 
   if ((vimeoProductId === null || !product) && event.product_id != null) {
