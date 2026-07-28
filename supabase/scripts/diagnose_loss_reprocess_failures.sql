@@ -23,10 +23,10 @@ where id = '9f3f9dba-c88a-47a0-82f1-1bed50ea4a9a';
 
 -- Failure mix for unprocessed loss on 2026-07-24
 select
-  topic,
+  v.topic,
   count(*) as n,
-  count(*) filter (where product_id is null) as null_product_id,
-  count(*) filter (where customer_id is null) as null_customer_id
+  count(*) filter (where v.product_id is null) as null_product_id,
+  count(*) filter (where v.customer_id is null) as null_customer_id
 from public.vott_events v
 left join public.subscription_events se on se.vott_event_id = v.id
 where se.id is null
@@ -44,5 +44,5 @@ where se.id is null
       and lower(coalesce(v.subscription_status, '')) = 'expired'
     )
   )
-group by topic
+group by v.topic
 order by n desc;
