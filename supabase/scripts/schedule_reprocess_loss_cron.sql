@@ -1,7 +1,7 @@
 -- =============================================================================
--- Cron: drain unprocessed LOSS webhooks (limit 25 per run)
--- Requires: migration 026, Edge Function reprocess-loss-events, Vault secrets
---   project_url + publishable_key (same as gain cron)
+-- Cron LOSS — Phase 1: only 2026-07-24 (limit 25 every 5 min)
+-- Run this whole file in SQL Editor.
+-- When unprocessed ≈ 0, run schedule_reprocess_loss_cron_phase2.sql
 -- =============================================================================
 
 create extension if not exists pg_cron with schema pg_catalog;
@@ -19,7 +19,7 @@ begin
 
   if v_url is null or v_key is null then
     raise exception
-      'Vault secrets project_url / publishable_key missing. Create them first (see schedule_reprocess_gain_cron.sql section A).';
+      'Vault secrets project_url / publishable_key missing. Create them first.';
   end if;
 end $$;
 
@@ -31,7 +31,7 @@ select
   cron.schedule(
     'reprocess-loss-events-every-5-min',
     '*/5 * * * *',
-    $$
+    $cron$
     select
       net.http_post(
         url := (
@@ -56,15 +56,18 @@ select
           )
         ),
         body := jsonb_build_object(
-          'startDate', to_char((timezone('utc', now()) - interval '7 days')::date, 'YYYY-MM-DD'),
-          'endDate', to_char((timezone('utc', now()))::date, 'YYYY-MM-DD'),
+          'startDate', '2026-07-24',
+          'endDate', '2026-07-24',
           'limit', 25
         ),
         timeout_milliseconds := 60000
       ) as request_id;
-    $$
+    $cron$
   );
 
 select jobid, jobname, schedule, active
 from cron.job
 where jobname = 'reprocess-loss-events-every-5-min';
+
+-- Check progress:
+-- select * from public.fn_combined_loss_coverage(date '2026-07-24');

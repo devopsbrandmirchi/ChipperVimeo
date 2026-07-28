@@ -1,35 +1,15 @@
 -- =============================================================================
--- Cron GAIN — Phase 1: only 2026-07-24 (limit 25 every 5 min)
--- Run this whole file in SQL Editor.
--- When unprocessed ≈ 0, run schedule_reprocess_gain_cron_phase2.sql
+-- Cron LOSS — Phase 2: rolling last 7 UTC days
+-- Run ONLY after 2026-07-24 loss coverage unprocessed ≈ 0
 -- =============================================================================
-
-create extension if not exists pg_cron with schema pg_catalog;
-create extension if not exists pg_net with schema extensions;
-
-do $$
-declare
-  v_url text;
-  v_key text;
-begin
-  select decrypted_secret into v_url
-  from vault.decrypted_secrets where name = 'project_url' limit 1;
-  select decrypted_secret into v_key
-  from vault.decrypted_secrets where name = 'publishable_key' limit 1;
-
-  if v_url is null or v_key is null or length(trim(v_url)) = 0 then
-    raise exception
-      'Vault secrets missing. Create project_url + publishable_key first.';
-  end if;
-end $$;
 
 select cron.unschedule(jobid)
 from cron.job
-where jobname = 'reprocess-gain-events-every-5-min';
+where jobname = 'reprocess-loss-events-every-5-min';
 
 select
   cron.schedule(
-    'reprocess-gain-events-every-5-min',
+    'reprocess-loss-events-every-5-min',
     '*/5 * * * *',
     $cron$
     select
@@ -39,7 +19,7 @@ select
           from vault.decrypted_secrets
           where name = 'project_url'
           limit 1
-        ) || '/functions/v1/reprocess-gain-events',
+        ) || '/functions/v1/reprocess-loss-events',
         headers := jsonb_build_object(
           'Content-Type', 'application/json',
           'Authorization', 'Bearer ' || (
@@ -56,8 +36,8 @@ select
           )
         ),
         body := jsonb_build_object(
-          'startDate', '2026-07-24',
-          'endDate', '2026-07-24',
+          'startDate', to_char((timezone('utc', now()) - interval '6 days')::date, 'YYYY-MM-DD'),
+          'endDate', to_char((timezone('utc', now()))::date, 'YYYY-MM-DD'),
           'limit', 25
         ),
         timeout_milliseconds := 60000
@@ -67,7 +47,4 @@ select
 
 select jobid, jobname, schedule, active
 from cron.job
-where jobname = 'reprocess-gain-events-every-5-min';
-
--- Check progress:
--- select * from public.fn_combined_gain_coverage(date '2026-07-24');
+where jobname = 'reprocess-loss-events-every-5-min';
