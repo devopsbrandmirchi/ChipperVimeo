@@ -1,15 +1,13 @@
 /**
  * Supabase Edge Function: reprocess-loss-events
  *
- * Calls Next.js reprocess API with kind=loss (set_cancellation / cancelled /
- * expired / disabled / free_trial_expired). Max limit 25 for Edge ~60s.
+ * Calls Next.js reprocess API with kind=loss.
+ * Topics: set_cancellation, expired, cancelled, disabled, free_trial_expired,
+ * and charge_failed when subscription_status=expired (Web loss rule).
+ * Max limit 25 for Edge ~60s.
  *
  * Secrets (same as gain):
  *   APP_REPROCESS_URL, REPROCESS_SECRET
- *
- * Cron body example:
- *   { "startDate": "2026-07-21", "endDate": "2026-07-28", "limit": 25 }
- * Or omit dates → last 7 UTC days.
  */
 
 const corsHeaders: Record<string, string> = {

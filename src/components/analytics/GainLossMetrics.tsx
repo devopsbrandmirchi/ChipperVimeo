@@ -55,7 +55,7 @@ export function GainLossMetrics({
         <MetricCard
           title="Subscription Loss"
           value={fmt(t.subscriptionLoss)}
-          hint="Web: set_cancellation · Non-web: cancelled/expired/disabled"
+          hint="Web: set_cancellation / expired / charge_failed(expired) · Non-web: cancelled/expired/disabled"
         />
         <MetricCard
           title="Trial Gain"
@@ -185,11 +185,10 @@ function DailyGainLossTable({
         </table>
       </div>
       <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-        Combined = Subscription + Trial. Gain/Loss from{" "}
-        <code>subscription_events</code> (UTC). Loss rules: Web ={" "}
-        <code>set_cancellation</code>; non-Web ={" "}
-        <code>cancelled</code>/<code>expired</code>/<code>disabled</code>; Trial
-        = <code>trial_expired</code>.
+        Combined = Subscription + Trial. UTC days from{" "}
+        <code>subscription_events</code>. Loss: Web = set_cancellation /
+        expired / charge_failed(status=expired); non-Web = cancelled / expired /
+        disabled; Trial = trial_expired.
       </p>
     </StatCard>
   );

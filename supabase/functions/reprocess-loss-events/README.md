@@ -2,17 +2,18 @@
 
 Topics:
 
-- `customer.product.set_cancellation` (Web subscription loss)
-- `customer.product.cancelled` / `expired` / `disabled` (non-Web subscription loss)
+- `customer.product.set_cancellation` (Web)
+- `customer.product.expired` (Web + non-Web)
+- `customer.product.charge_failed` when `subscription_status = expired` (Web loss)
+- `customer.product.cancelled` / `disabled` (non-Web)
 - `customer.product.free_trial_expired` (trial loss)
 
 ## Setup
 
-1. Apply migration `026_subscription_loss_reprocess.sql`
-2. Redeploy Next.js app (reprocess API accepts `kind: "loss"`)
+1. Apply migrations `026` + `027_subscription_loss_rules_v2.sql`
+2. Redeploy Next.js app
 3. Same Edge secrets as gain: `APP_REPROCESS_URL`, `REPROCESS_SECRET`
-4. Deploy this function in Dashboard → Edge Functions → Via Editor  
-   Name: `reprocess-loss-events`
+4. Deploy this function: name `reprocess-loss-events`
 
 ## Invoke / cron body
 

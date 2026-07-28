@@ -50,6 +50,8 @@ export class CustomerProductChargeFailedHandler implements EventHandler {
       payload: {
         vimeo_customer_id: extracted.vimeoCustomerId,
         vimeo_product_id: extracted.vimeoProductId,
+        subscription_status: extracted.customer.subscription_status ?? null,
+        platform: event.platform,
       },
     });
   }

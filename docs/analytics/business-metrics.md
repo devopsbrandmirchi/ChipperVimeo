@@ -35,8 +35,11 @@ Authoritative mapping from business KPIs to normalized `subscription_events.even
 
 ### Subscription Loss
 
-- **Web** (`normalize_report_platform` = Web, including `api`/`vhx` aliases): `set_cancellation` only
-- **Non-Web** (iOS, Android, TV platforms, OTHER, …): `cancelled`, `expired`, `disabled`
+- **Web** (`normalize_report_platform` = Web):
+  - `set_cancellation`
+  - `expired`
+  - `charge_failed` **only when** event `subscription_status` = `expired`
+- **Non-Web** (iOS, Android, TV, OTHER, …): `cancelled`, `expired`, `disabled`
 - Platform prefers `vott_events.platform` (event-time), then event payload, then `customers.platform`
 
 ### Trial Loss

@@ -112,8 +112,11 @@ group by 1;
 select * from public.fn_combined_loss_coverage(date '2026-07-24');
 ```
 
-Loss topics: `set_cancellation`, `cancelled`, `expired`, `disabled`, `free_trial_expired`.
+Loss topics: `set_cancellation`, `expired`, `cancelled`, `disabled`,
+`free_trial_expired`, and Web `charge_failed` when `subscription_status=expired`.
 Dashboard Combined Loss = subscription loss (platform rules) + trial loss.
+
+Apply migration `027_subscription_loss_rules_v2.sql` for the updated rules.
 
 ---
 
