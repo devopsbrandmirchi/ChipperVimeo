@@ -74,6 +74,8 @@ export function GainLossMetrics({
         />
       </div>
 
+      <DailyGainLossTable rows={data.series} totals={t} />
+
       <div className="grid gap-4 lg:grid-cols-3">
         <BreakdownTable
           title="By platform"
@@ -93,6 +95,100 @@ export function GainLossMetrics({
         />
       </div>
     </section>
+  );
+}
+
+function DailyGainLossTable({
+  rows,
+  totals,
+}: {
+  rows: SubscriptionMetricsResponse["series"];
+  totals: SubscriptionMetricsResponse["totals"];
+}) {
+  const days = [...rows].sort((a, b) => b.key.localeCompare(a.key));
+
+  return (
+    <StatCard title="Day-wise gain / loss (UTC)">
+      <div className="max-h-96 overflow-auto">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead className="sticky top-0 bg-[var(--card)] text-[var(--muted-foreground)]">
+            <tr>
+              <th className="py-2 pr-3 font-medium" rowSpan={2}>
+                Date
+              </th>
+              <th
+                className="border-b border-[var(--border)] py-2 pr-3 text-center font-medium"
+                colSpan={2}
+              >
+                Combined
+              </th>
+              <th
+                className="border-b border-[var(--border)] py-2 pr-3 text-center font-medium"
+                colSpan={2}
+              >
+                Subscription
+              </th>
+              <th
+                className="border-b border-[var(--border)] py-2 text-center font-medium"
+                colSpan={2}
+              >
+                Trial
+              </th>
+            </tr>
+            <tr>
+              <th className="py-2 pr-3 font-medium">Gain</th>
+              <th className="py-2 pr-3 font-medium">Loss</th>
+              <th className="py-2 pr-3 font-medium">Gain</th>
+              <th className="py-2 pr-3 font-medium">Loss</th>
+              <th className="py-2 pr-3 font-medium">Gain</th>
+              <th className="py-2 font-medium">Loss</th>
+            </tr>
+          </thead>
+          <tbody>
+            {days.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="py-3 text-[var(--muted-foreground)]"
+                >
+                  No events in range
+                </td>
+              </tr>
+            ) : (
+              days.map((row) => (
+                <tr
+                  key={row.key}
+                  className="border-t border-[var(--border)]"
+                >
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    {row.reportDate ?? row.label}
+                  </td>
+                  <td className="py-2 pr-3">{fmt(row.combinedGain)}</td>
+                  <td className="py-2 pr-3">{fmt(row.combinedLoss)}</td>
+                  <td className="py-2 pr-3">{fmt(row.subscriptionGain)}</td>
+                  <td className="py-2 pr-3">{fmt(row.subscriptionLoss)}</td>
+                  <td className="py-2 pr-3">{fmt(row.trialGain)}</td>
+                  <td className="py-2">{fmt(row.trialLoss)}</td>
+                </tr>
+              ))
+            )}
+            <tr className="border-t-2 border-[var(--border)] font-semibold">
+              <td className="py-2 pr-3">TOTAL</td>
+              <td className="py-2 pr-3">{fmt(totals.combinedGain)}</td>
+              <td className="py-2 pr-3">{fmt(totals.combinedLoss)}</td>
+              <td className="py-2 pr-3">{fmt(totals.subscriptionGain)}</td>
+              <td className="py-2 pr-3">{fmt(totals.subscriptionLoss)}</td>
+              <td className="py-2 pr-3">{fmt(totals.trialGain)}</td>
+              <td className="py-2">{fmt(totals.trialLoss)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+        Combined = Subscription + Trial. Dates are UTC calendar days from{" "}
+        <code>subscription_events.event_created_at</code>.
+      </p>
+    </StatCard>
   );
 }
 

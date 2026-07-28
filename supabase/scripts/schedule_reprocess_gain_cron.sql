@@ -1,36 +1,92 @@
 -- =============================================================================
 -- Cron: drain unprocessed gain webhooks via Edge Function (limit 25 per run)
 -- =============================================================================
--- Prefer Dashboard UI (no SQL secrets in repo):
---   Integrations → Cron → Create job
---   Type: Supabase Edge Function
---   Function: reprocess-gain-events
---   Method: POST
---   Body: { "lookbackDays": 7, "limit": 25 }
---   Schedule: every 5 minutes while catching up, then hourly
+-- ERROR you saw:
+--   null value in column "url" ... 
+-- means Vault secrets `project_url` / `publishable_key` are missing → URL is null.
 --
--- Or use this SQL after enabling extensions + vault secrets.
+-- Fix: create those secrets FIRST (section A), then schedule (section B).
+--
+-- Easier alternative (no SQL): Dashboard → Integrations → Cron → Create job
+--   Type: Supabase Edge Function → reprocess-gain-events
+--   Body: { "lookbackDays": 7, "limit": 25 }
+--   Schedule: */5 * * * *
 -- =============================================================================
 
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
 
--- One-time: store secrets in Vault (edit values, then run once).
--- select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co', 'project_url');
--- select vault.create_secret('YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY', 'publishable_key');
+-- -----------------------------------------------------------------------------
+-- A) ONE-TIME: create Vault secrets (edit the two values, then run this block)
+-- -----------------------------------------------------------------------------
+-- Replace YOUR_PROJECT_REF and YOUR_ANON_KEY before running.
+-- Anon/publishable key: Project Settings → API → anon public
 
--- Unschedule if re-creating
--- select cron.unschedule('reprocess-gain-events-every-5-min');
+do $$
+declare
+  v_url text := 'https://YOUR_PROJECT_REF.supabase.co';  -- e.g. https://abcdefgh.supabase.co
+  v_key text := 'YOUR_ANON_OR_PUBLISHABLE_KEY';
+begin
+  if v_url like '%YOUR_PROJECT_REF%' or v_key like 'YOUR_%' then
+    raise exception
+      'Edit v_url and v_key in section A before running (placeholders still present)';
+  end if;
+
+  if not exists (
+    select 1 from vault.decrypted_secrets where name = 'project_url'
+  ) then
+    perform vault.create_secret(v_url, 'project_url');
+  end if;
+
+  if not exists (
+    select 1 from vault.decrypted_secrets where name = 'publishable_key'
+  ) then
+    perform vault.create_secret(v_key, 'publishable_key');
+  end if;
+end $$;
+
+-- Verify secrets exist (url/key should NOT be null)
+select
+  name,
+  left(decrypted_secret, 40) as secret_preview
+from vault.decrypted_secrets
+where name in ('project_url', 'publishable_key');
+
+-- -----------------------------------------------------------------------------
+-- B) Schedule (only after section A succeeds)
+-- -----------------------------------------------------------------------------
+
+-- Guard: refuse to schedule if secrets missing
+do $$
+declare
+  v_url text;
+  v_key text;
+begin
+  select decrypted_secret into v_url
+  from vault.decrypted_secrets where name = 'project_url' limit 1;
+  select decrypted_secret into v_key
+  from vault.decrypted_secrets where name = 'publishable_key' limit 1;
+
+  if v_url is null or v_key is null or length(trim(v_url)) = 0 then
+    raise exception
+      'Vault secrets missing. Run section A first (project_url + publishable_key).';
+  end if;
+end $$;
+
+-- Remove previous job if re-creating
+select cron.unschedule(jobid)
+from cron.job
+where jobname = 'reprocess-gain-events-every-5-min';
 
 select
   cron.schedule(
     'reprocess-gain-events-every-5-min',
-    '*/5 * * * *', -- every 5 minutes (UTC)
+    '*/5 * * * *',
     $$
     select
       net.http_post(
         url := (
-          select decrypted_secret
+          select trim(decrypted_secret)
           from vault.decrypted_secrets
           where name = 'project_url'
           limit 1
@@ -38,35 +94,34 @@ select
         headers := jsonb_build_object(
           'Content-Type', 'application/json',
           'Authorization', 'Bearer ' || (
-            select decrypted_secret
+            select trim(decrypted_secret)
             from vault.decrypted_secrets
             where name = 'publishable_key'
             limit 1
           ),
           'apikey', (
-            select decrypted_secret
+            select trim(decrypted_secret)
             from vault.decrypted_secrets
             where name = 'publishable_key'
             limit 1
           )
         ),
-        -- Empty-ish body: Edge Function defaults to last 7 UTC days, limit 25
         body := jsonb_build_object(
           'lookbackDays', 7,
           'limit', 25
         ),
-        -- Must be high enough for Edge → app batch (~30–55s)
         timeout_milliseconds := 60000
       ) as request_id;
     $$
   );
 
--- Monitor runs:
+-- List job
+select jobid, jobname, schedule, active
+from cron.job
+where jobname = 'reprocess-gain-events-every-5-min';
+
+-- Recent runs (after a few minutes)
 -- select * from cron.job_run_details
 -- where jobid = (select jobid from cron.job where jobname = 'reprocess-gain-events-every-5-min')
 -- order by start_time desc
 -- limit 20;
-
--- When backlog is cleared, switch to hourly:
--- select cron.unschedule('reprocess-gain-events-every-5-min');
--- then schedule '0 * * * *' with the same http_post body.
