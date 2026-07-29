@@ -161,7 +161,10 @@ export function mapSubscriptionMetricsResponse(
   const totals = emptyTotals();
   for (const row of rows) addRow(totals, row);
 
+  // Exclude today: partial-day ingest makes current UTC day incomplete.
+  const todayUtc = utcToday();
   const byDayCountry: SubscriptionGainLossRow[] = dayCountryRows
+    .filter((row) => row.report_date < todayUtc)
     .map((row) => {
       const baseTotals: SubscriptionGainLossTotals = {
         subscriptionGain: num(row.subscription_gain),
@@ -186,9 +189,8 @@ export function mapSubscriptionMetricsResponse(
       };
     })
     .sort((a, b) => {
-      // order by day, then "unique customers" gain (user-selected preference),
-      // fall back to combined loss to keep ordering stable.
-      const dayCmp = (a.reportDate ?? "").localeCompare(b.reportDate ?? "");
+      // Latest date first, then unique-customers gain within the day.
+      const dayCmp = (b.reportDate ?? "").localeCompare(a.reportDate ?? "");
       if (dayCmp !== 0) return dayCmp;
       const gainCmp = b.uniqueCustomersGain - a.uniqueCustomersGain;
       if (gainCmp !== 0) return gainCmp;

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   mapSubscriptionMetricsResponse,
   resolveSubscriptionMetricsRange,
+  utcToday,
 } from "@/modules/analytics/mappers/subscription-metrics.mappers";
 import type {
   SubscriptionMetricsDbRow,
@@ -184,7 +185,7 @@ describe("mapSubscriptionMetricsResponse", () => {
       {
         startDate: "2026-07-21",
         endDate: "2026-07-21",
-        preset: "today",
+        preset: "custom",
       },
     );
 
@@ -194,6 +195,69 @@ describe("mapSubscriptionMetricsResponse", () => {
     expect(result.byDayCountry[0].uniqueCustomersGain).toBe(5);
     expect(result.byDayCountry[1].country).toBe("CA");
     expect(result.byDayCountry[1].uniqueCustomersLoss).toBe(4);
+  });
+
+  it("orders byDayCountry by latest date first and drops today UTC", () => {
+    const today = utcToday();
+    const yesterday = new Date(`${today}T00:00:00.000Z`);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+    const older = new Date(`${today}T00:00:00.000Z`);
+    older.setUTCDate(older.getUTCDate() - 2);
+    const olderStr = older.toISOString().slice(0, 10);
+
+    const dayCountryRows: SubscriptionMetricsDayCountryDbRow[] = [
+      {
+        report_date: olderStr,
+        country: "US",
+        subscription_gain: 1,
+        subscription_loss: 0,
+        trial_gain: 0,
+        trial_loss: 0,
+        trial_conversion: 0,
+        combined_gain: 1,
+        combined_loss: 0,
+        unique_customers_gain: 1,
+        unique_customers_loss: 0,
+      },
+      {
+        report_date: yesterdayStr,
+        country: "US",
+        subscription_gain: 2,
+        subscription_loss: 0,
+        trial_gain: 0,
+        trial_loss: 0,
+        trial_conversion: 0,
+        combined_gain: 2,
+        combined_loss: 0,
+        unique_customers_gain: 2,
+        unique_customers_loss: 0,
+      },
+      {
+        report_date: today,
+        country: "US",
+        subscription_gain: 9,
+        subscription_loss: 0,
+        trial_gain: 0,
+        trial_loss: 0,
+        trial_conversion: 0,
+        combined_gain: 9,
+        combined_loss: 0,
+        unique_customers_gain: 9,
+        unique_customers_loss: 0,
+      },
+    ];
+
+    const result = mapSubscriptionMetricsResponse([], dayCountryRows, {
+      startDate: olderStr,
+      endDate: today,
+      preset: "custom",
+    });
+
+    expect(result.byDayCountry).toHaveLength(2);
+    expect(result.byDayCountry[0].reportDate).toBe(yesterdayStr);
+    expect(result.byDayCountry[1].reportDate).toBe(olderStr);
+    expect(result.byDayCountry.every((r) => r.reportDate !== today)).toBe(true);
   });
 });
 

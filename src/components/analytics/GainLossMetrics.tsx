@@ -275,6 +275,10 @@ function DayCountryGainLossTable({
           </tbody>
         </table>
       </div>
+      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+        Latest complete UTC day first. Today (UTC) is excluded because the day
+        is still incomplete.
+      </p>
     </StatCard>
   );
 }
