@@ -185,6 +185,10 @@ export function mapSubscriptionMetricsResponse(
         label: row.country,
         reportDate: row.report_date,
         country: row.country,
+        uniqueSubscriptionGain: num(row.unique_subscription_gain),
+        uniqueSubscriptionLoss: num(row.unique_subscription_loss),
+        uniqueTrialGain: num(row.unique_trial_gain),
+        uniqueTrialLoss: num(row.unique_trial_loss),
         ...totalsWithRate,
       };
     })

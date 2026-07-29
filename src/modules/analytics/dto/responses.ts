@@ -230,6 +230,10 @@ export type SubscriptionGainLossRow = SubscriptionGainLossTotals & {
   platform?: string;
   country?: string;
   productId?: string;
+  uniqueSubscriptionGain?: number;
+  uniqueSubscriptionLoss?: number;
+  uniqueTrialGain?: number;
+  uniqueTrialLoss?: number;
 };
 
 export type SubscriptionMetricsResponse = {

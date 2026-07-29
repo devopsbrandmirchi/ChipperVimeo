@@ -161,6 +161,10 @@ describe("mapSubscriptionMetricsResponse", () => {
         trial_conversion: 1,
         combined_gain: 3,
         combined_loss: 1,
+        unique_subscription_gain: 2,
+        unique_subscription_loss: 1,
+        unique_trial_gain: 1,
+        unique_trial_loss: 0,
         unique_customers_gain: 5,
         unique_customers_loss: 2,
       },
@@ -174,6 +178,10 @@ describe("mapSubscriptionMetricsResponse", () => {
         trial_conversion: 1,
         combined_gain: 2,
         combined_loss: 1,
+        unique_subscription_gain: 0,
+        unique_subscription_loss: 0,
+        unique_trial_gain: 2,
+        unique_trial_loss: 1,
         unique_customers_gain: 3,
         unique_customers_loss: 4,
       },
@@ -193,8 +201,11 @@ describe("mapSubscriptionMetricsResponse", () => {
     // US should come before CA because it has higher unique_customers_gain
     expect(result.byDayCountry[0].country).toBe("US");
     expect(result.byDayCountry[0].uniqueCustomersGain).toBe(5);
+    expect(result.byDayCountry[0].uniqueSubscriptionGain).toBe(2);
+    expect(result.byDayCountry[0].uniqueTrialGain).toBe(1);
     expect(result.byDayCountry[1].country).toBe("CA");
     expect(result.byDayCountry[1].uniqueCustomersLoss).toBe(4);
+    expect(result.byDayCountry[1].uniqueTrialLoss).toBe(1);
   });
 
   it("orders byDayCountry by latest date first and drops today UTC", () => {
@@ -217,6 +228,10 @@ describe("mapSubscriptionMetricsResponse", () => {
         trial_conversion: 0,
         combined_gain: 1,
         combined_loss: 0,
+        unique_subscription_gain: 1,
+        unique_subscription_loss: 0,
+        unique_trial_gain: 0,
+        unique_trial_loss: 0,
         unique_customers_gain: 1,
         unique_customers_loss: 0,
       },
@@ -230,6 +245,10 @@ describe("mapSubscriptionMetricsResponse", () => {
         trial_conversion: 0,
         combined_gain: 2,
         combined_loss: 0,
+        unique_subscription_gain: 2,
+        unique_subscription_loss: 0,
+        unique_trial_gain: 0,
+        unique_trial_loss: 0,
         unique_customers_gain: 2,
         unique_customers_loss: 0,
       },
@@ -243,6 +262,10 @@ describe("mapSubscriptionMetricsResponse", () => {
         trial_conversion: 0,
         combined_gain: 9,
         combined_loss: 0,
+        unique_subscription_gain: 9,
+        unique_subscription_loss: 0,
+        unique_trial_gain: 0,
+        unique_trial_loss: 0,
         unique_customers_gain: 9,
         unique_customers_loss: 0,
       },

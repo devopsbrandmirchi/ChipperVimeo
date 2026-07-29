@@ -215,19 +215,13 @@ function DayCountryGainLossTable({
               <th className="py-2 pr-3 text-center font-medium">Sub Loss</th>
               <th className="py-2 pr-3 text-center font-medium">Trial Gain</th>
               <th className="py-2 pr-3 text-center font-medium">Trial Loss</th>
-              <th className="py-2 pr-3 text-center font-medium">
-                Unique Customers Gain
-              </th>
-              <th className="py-2 pr-3 text-center font-medium">
-                Unique Customers Loss
-              </th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={8}
                   className="py-3 text-[var(--muted-foreground)]"
                 >
                   No events in range
@@ -246,28 +240,22 @@ function DayCountryGainLossTable({
                     {row.country ?? row.label}
                   </td>
                   <td className="py-2 pr-3 text-center">
-                    {fmt(row.combinedGain)}
-                  </td>
-                  <td className="py-2 pr-3 text-center">
-                    {fmt(row.combinedLoss)}
-                  </td>
-                  <td className="py-2 pr-3 text-center">
-                    {fmt(row.subscriptionGain)}
-                  </td>
-                  <td className="py-2 pr-3 text-center">
-                    {fmt(row.subscriptionLoss)}
-                  </td>
-                  <td className="py-2 pr-3 text-center">
-                    {fmt(row.trialGain)}
-                  </td>
-                  <td className="py-2 pr-3 text-center">
-                    {fmt(row.trialLoss)}
-                  </td>
-                  <td className="py-2 pr-3 text-center">
                     {fmt(row.uniqueCustomersGain)}
                   </td>
                   <td className="py-2 pr-3 text-center">
                     {fmt(row.uniqueCustomersLoss)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.uniqueSubscriptionGain ?? row.subscriptionGain)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.uniqueSubscriptionLoss ?? row.subscriptionLoss)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.uniqueTrialGain ?? row.trialGain)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.uniqueTrialLoss ?? row.trialLoss)}
                   </td>
                 </tr>
               ))
@@ -276,8 +264,8 @@ function DayCountryGainLossTable({
         </table>
       </div>
       <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-        Latest complete UTC day first. Today (UTC) is excluded because the day
-        is still incomplete.
+        Distinct customers per bucket, not raw event counts. Latest complete UTC
+        day first. Today (UTC) is excluded because the day is still incomplete.
       </p>
     </StatCard>
   );

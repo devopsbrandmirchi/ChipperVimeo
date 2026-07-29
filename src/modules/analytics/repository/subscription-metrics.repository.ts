@@ -30,6 +30,10 @@ export type SubscriptionMetricsDayCountryDbRow = {
   combined_loss: number;
   unique_customers_gain: number;
   unique_customers_loss: number;
+  unique_subscription_gain: number;
+  unique_subscription_loss: number;
+  unique_trial_gain: number;
+  unique_trial_loss: number;
 };
 
 /**
