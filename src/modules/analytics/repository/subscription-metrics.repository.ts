@@ -18,6 +18,20 @@ export type SubscriptionMetricsDbRow = {
   unique_customers_loss: number;
 };
 
+export type SubscriptionMetricsDayCountryDbRow = {
+  report_date: string;
+  country: string;
+  subscription_gain: number;
+  subscription_loss: number;
+  trial_gain: number;
+  trial_loss: number;
+  trial_conversion: number;
+  combined_gain: number;
+  combined_loss: number;
+  unique_customers_gain: number;
+  unique_customers_loss: number;
+};
+
 /**
  * Gain/loss metrics from analytics.fn_subscription_metrics.
  * Never queries vott_events.
@@ -51,5 +65,28 @@ export class SubscriptionMetricsRepository {
       );
     }
     return (data as SubscriptionMetricsDbRow[]) ?? [];
+  }
+
+  async listDayCountryMetrics(params: {
+    startDate: string;
+    endDate: string;
+    country?: string;
+  }): Promise<SubscriptionMetricsDayCountryDbRow[]> {
+    const { data, error } = await this.db().rpc(
+      "fn_subscription_metrics_day_country",
+      {
+        p_start_date: params.startDate,
+        p_end_date: params.endDate,
+        p_country: params.country ?? null,
+      },
+    );
+    if (error) {
+      throw new RepositoryError(
+        "DatabaseError",
+        `fn_subscription_metrics_day_country: ${error.message}`,
+        { table: "analytics.v_daily_subscription_country_metrics" },
+      );
+    }
+    return (data as SubscriptionMetricsDayCountryDbRow[]) ?? [];
   }
 }

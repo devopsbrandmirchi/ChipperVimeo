@@ -4,7 +4,10 @@ import type {
   SubscriptionMetricsResponse,
 } from "@/modules/analytics/dto/responses";
 import type { SubscriptionMetricsFilters } from "@/modules/analytics/dto/filters";
-import type { SubscriptionMetricsDbRow } from "@/modules/analytics/repository/subscription-metrics.repository";
+import type {
+  SubscriptionMetricsDbRow,
+  SubscriptionMetricsDayCountryDbRow,
+} from "@/modules/analytics/repository/subscription-metrics.repository";
 
 function num(value: unknown): number {
   if (typeof value === "number") return value;
@@ -152,10 +155,45 @@ function groupRows(
 
 export function mapSubscriptionMetricsResponse(
   rows: SubscriptionMetricsDbRow[],
+  dayCountryRows: SubscriptionMetricsDayCountryDbRow[],
   range: { startDate: string; endDate: string; preset: string },
 ): SubscriptionMetricsResponse {
   const totals = emptyTotals();
   for (const row of rows) addRow(totals, row);
+
+  const byDayCountry: SubscriptionGainLossRow[] = dayCountryRows
+    .map((row) => {
+      const baseTotals: SubscriptionGainLossTotals = {
+        subscriptionGain: num(row.subscription_gain),
+        subscriptionLoss: num(row.subscription_loss),
+        trialGain: num(row.trial_gain),
+        trialLoss: num(row.trial_loss),
+        trialConversion: num(row.trial_conversion),
+        combinedGain: num(row.combined_gain),
+        combinedLoss: num(row.combined_loss),
+        uniqueCustomersGain: num(row.unique_customers_gain),
+        uniqueCustomersLoss: num(row.unique_customers_loss),
+        conversionRate: 0, // overwritten below
+      };
+
+      const totalsWithRate = withConversionRate(baseTotals);
+      return {
+        key: `${row.report_date}|${row.country}`,
+        label: row.country,
+        reportDate: row.report_date,
+        country: row.country,
+        ...totalsWithRate,
+      };
+    })
+    .sort((a, b) => {
+      // order by day, then "unique customers" gain (user-selected preference),
+      // fall back to combined loss to keep ordering stable.
+      const dayCmp = (a.reportDate ?? "").localeCompare(b.reportDate ?? "");
+      if (dayCmp !== 0) return dayCmp;
+      const gainCmp = b.uniqueCustomersGain - a.uniqueCustomersGain;
+      if (gainCmp !== 0) return gainCmp;
+      return b.combinedLoss - a.combinedLoss;
+    });
 
   const byPlatform = groupRows(rows, "platform");
   const platformTotal: SubscriptionGainLossRow = {
@@ -174,6 +212,7 @@ export function mapSubscriptionMetricsResponse(
     byPlatform: [...byPlatform, platformTotal],
     byCountry: groupRows(rows, "country"),
     byProduct: groupRows(rows, "product"),
+    byDayCountry,
     source: "subscription_events",
   };
 }

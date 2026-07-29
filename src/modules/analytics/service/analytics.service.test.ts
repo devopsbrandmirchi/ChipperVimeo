@@ -117,6 +117,7 @@ function mockSubscriptionMetricsRepo(
         unique_customers_loss: 2,
       },
     ]),
+    listDayCountryMetrics: vi.fn().mockResolvedValue([]),
     ...overrides,
   } as unknown as SubscriptionMetricsRepository;
 }

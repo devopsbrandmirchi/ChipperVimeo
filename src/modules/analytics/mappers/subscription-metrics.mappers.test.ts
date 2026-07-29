@@ -4,7 +4,10 @@ import {
   mapSubscriptionMetricsResponse,
   resolveSubscriptionMetricsRange,
 } from "@/modules/analytics/mappers/subscription-metrics.mappers";
-import type { SubscriptionMetricsDbRow } from "@/modules/analytics/repository/subscription-metrics.repository";
+import type {
+  SubscriptionMetricsDbRow,
+  SubscriptionMetricsDayCountryDbRow,
+} from "@/modules/analytics/repository/subscription-metrics.repository";
 import { isFreeTrialCustomer } from "@/processors/helpers/payload";
 import type { VimeoCustomer } from "@/types/vimeo";
 
@@ -95,11 +98,15 @@ describe("mapSubscriptionMetricsResponse", () => {
       }),
     ];
 
-    const result = mapSubscriptionMetricsResponse(rows, {
-      startDate: "2026-07-20",
-      endDate: "2026-07-20",
-      preset: "today",
-    });
+    const result = mapSubscriptionMetricsResponse(
+      rows,
+      [],
+      {
+        startDate: "2026-07-20",
+        endDate: "2026-07-20",
+        preset: "today",
+      },
+    );
 
     expect(result.source).toBe("subscription_events");
     expect(result.totals.subscriptionGain).toBe(3);
@@ -128,13 +135,65 @@ describe("mapSubscriptionMetricsResponse", () => {
         combined_gain: 5,
       }),
     ];
-    const result = mapSubscriptionMetricsResponse(rows, {
-      startDate: "2026-07-21",
-      endDate: "2026-07-21",
-      preset: "today",
-    });
+    const result = mapSubscriptionMetricsResponse(
+      rows,
+      [],
+      {
+        startDate: "2026-07-21",
+        endDate: "2026-07-21",
+        preset: "today",
+      },
+    );
     expect(result.totals.subscriptionGain).toBe(0);
     expect(result.totals.trialGain).toBe(5);
+  });
+
+  it("maps byDayCountry using pre-aggregated distinct counts", () => {
+    const dayCountryRows: SubscriptionMetricsDayCountryDbRow[] = [
+      {
+        report_date: "2026-07-21",
+        country: "US",
+        subscription_gain: 2,
+        subscription_loss: 1,
+        trial_gain: 1,
+        trial_loss: 0,
+        trial_conversion: 1,
+        combined_gain: 3,
+        combined_loss: 1,
+        unique_customers_gain: 5,
+        unique_customers_loss: 2,
+      },
+      {
+        report_date: "2026-07-21",
+        country: "CA",
+        subscription_gain: 0,
+        subscription_loss: 0,
+        trial_gain: 2,
+        trial_loss: 1,
+        trial_conversion: 1,
+        combined_gain: 2,
+        combined_loss: 1,
+        unique_customers_gain: 3,
+        unique_customers_loss: 4,
+      },
+    ];
+
+    const result = mapSubscriptionMetricsResponse(
+      [],
+      dayCountryRows,
+      {
+        startDate: "2026-07-21",
+        endDate: "2026-07-21",
+        preset: "today",
+      },
+    );
+
+    expect(result.byDayCountry).toHaveLength(2);
+    // US should come before CA because it has higher unique_customers_gain
+    expect(result.byDayCountry[0].country).toBe("US");
+    expect(result.byDayCountry[0].uniqueCustomersGain).toBe(5);
+    expect(result.byDayCountry[1].country).toBe("CA");
+    expect(result.byDayCountry[1].uniqueCustomersLoss).toBe(4);
   });
 });
 

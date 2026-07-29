@@ -367,14 +367,22 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
     return this.timed("getSubscriptionGainLossMetrics", async () => {
       try {
         const range = resolveSubscriptionMetricsRange(filters);
-        const rows = await this.subscriptionMetricsRepo.listMetrics({
-          startDate: range.startDate,
-          endDate: range.endDate,
-          platform: filters.platform,
-          country: filters.country,
-          productId: filters.productId,
-        });
-        return mapSubscriptionMetricsResponse(rows, range);
+        const [rows, dayCountryRows] = await Promise.all([
+          this.subscriptionMetricsRepo.listMetrics({
+            startDate: range.startDate,
+            endDate: range.endDate,
+            platform: filters.platform,
+            country: filters.country,
+            productId: filters.productId,
+          }),
+          this.subscriptionMetricsRepo.listDayCountryMetrics({
+            startDate: range.startDate,
+            endDate: range.endDate,
+            country: filters.country,
+          }),
+        ]);
+
+        return mapSubscriptionMetricsResponse(rows, dayCountryRows, range);
       } catch (error) {
         this.mapRepositoryError(error, "getSubscriptionGainLossMetrics");
       }

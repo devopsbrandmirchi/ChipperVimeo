@@ -241,6 +241,7 @@ export type SubscriptionMetricsResponse = {
   byPlatform: SubscriptionGainLossRow[];
   byCountry: SubscriptionGainLossRow[];
   byProduct: SubscriptionGainLossRow[];
+  byDayCountry: SubscriptionGainLossRow[];
   source: "subscription_events";
 };
 

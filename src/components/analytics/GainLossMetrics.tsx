@@ -76,6 +76,8 @@ export function GainLossMetrics({
 
       <DailyGainLossTable rows={data.series} totals={t} />
 
+      <DayCountryGainLossTable rows={data.byDayCountry} />
+
       <div className="grid gap-4 lg:grid-cols-3">
         <BreakdownTable
           title="By platform"
@@ -190,6 +192,89 @@ function DailyGainLossTable({
         expired / charge_failed(status=expired); non-Web = cancelled / expired /
         disabled; Trial = trial_expired.
       </p>
+    </StatCard>
+  );
+}
+
+function DayCountryGainLossTable({
+  rows,
+}: {
+  rows: SubscriptionMetricsResponse["byDayCountry"];
+}) {
+  return (
+    <StatCard title="By day & country gain / loss (UTC)">
+      <div className="max-h-96 overflow-auto">
+        <table className="w-full min-w-[1050px] text-left text-sm">
+          <thead className="sticky top-0 bg-[var(--card)] text-[var(--muted-foreground)]">
+            <tr>
+              <th className="py-2 pr-3 font-medium">Date</th>
+              <th className="py-2 pr-3 font-medium">Country</th>
+              <th className="py-2 pr-3 text-center font-medium">Combined Gain</th>
+              <th className="py-2 pr-3 text-center font-medium">Combined Loss</th>
+              <th className="py-2 pr-3 text-center font-medium">Sub Gain</th>
+              <th className="py-2 pr-3 text-center font-medium">Sub Loss</th>
+              <th className="py-2 pr-3 text-center font-medium">Trial Gain</th>
+              <th className="py-2 pr-3 text-center font-medium">Trial Loss</th>
+              <th className="py-2 pr-3 text-center font-medium">
+                Unique Customers Gain
+              </th>
+              <th className="py-2 pr-3 text-center font-medium">
+                Unique Customers Loss
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={10}
+                  className="py-3 text-[var(--muted-foreground)]"
+                >
+                  No events in range
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr
+                  key={row.key}
+                  className="border-t border-[var(--border)]"
+                >
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    {row.reportDate ?? row.label}
+                  </td>
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    {row.country ?? row.label}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.combinedGain)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.combinedLoss)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.subscriptionGain)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.subscriptionLoss)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.trialGain)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.trialLoss)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.uniqueCustomersGain)}
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    {fmt(row.uniqueCustomersLoss)}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </StatCard>
   );
 }
