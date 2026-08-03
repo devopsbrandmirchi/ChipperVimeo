@@ -1,7 +1,7 @@
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
-import { ErrorCard } from "@/components/common/feedback";
+import { RefreshErrorCard } from "@/components/common/RefreshErrorCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
@@ -34,6 +34,7 @@ export default async function DashboardPage({
   let totalCustomers = 0;
   let gainLoss: SubscriptionMetricsResponse | null = null;
   let loadError: string | null = null;
+  let gainLossError: string | null = null;
 
   try {
     const [overviewRes, revenueRes, customersRes, gainLossRes] =
@@ -48,7 +49,15 @@ export default async function DashboardPage({
             startDate,
             endDate,
           },
-        ).catch(() => null),
+        ).catch((error) => {
+          gainLossError =
+            error instanceof ApiClientError
+              ? error.message
+              : error instanceof Error
+                ? error.message
+                : "Failed to load gain/loss metrics";
+          return null;
+        }),
       ]);
     overview = overviewRes.data;
     revenue = revenueRes.data;
@@ -67,7 +76,7 @@ export default async function DashboardPage({
     return (
       <div className="space-y-6">
         <PageHeader title="Dashboard" breadcrumbs={[{ label: "Dashboard" }]} />
-        <ErrorCard
+        <RefreshErrorCard
           title="Unable to load dashboard"
           message={loadError ?? "Missing analytics data"}
         />
@@ -90,7 +99,15 @@ export default async function DashboardPage({
       />
       {gainLoss ? (
         <GainLossMetrics data={gainLoss} preset={gainLoss.preset || preset} />
-      ) : null}
+      ) : (
+        <RefreshErrorCard
+          title="Unable to load gain / loss metrics"
+          message={
+            gainLossError ??
+            "Gain/loss metrics are temporarily unavailable."
+          }
+        />
+      )}
       <DashboardMetrics
         totalCustomers={totalCustomers}
         activeSubscribers={overview.activeSubscribers}

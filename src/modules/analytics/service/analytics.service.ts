@@ -375,11 +375,21 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
             country: filters.country,
             productId: filters.productId,
           }),
-          this.subscriptionMetricsRepo.listDayCountryMetrics({
-            startDate: range.startDate,
-            endDate: range.endDate,
-            country: filters.country,
-          }),
+          // Soft-fail: day×country can timeout on large ranges; keep main KPIs.
+          this.subscriptionMetricsRepo
+            .listDayCountryMetrics({
+              startDate: range.startDate,
+              endDate: range.endDate,
+              country: filters.country,
+            })
+            .catch((error) => {
+              this.logger.warn("Day-country metrics unavailable", {
+                error: error instanceof Error ? error.message : "unknown",
+                startDate: range.startDate,
+                endDate: range.endDate,
+              });
+              return [];
+            }),
         ]);
 
         return mapSubscriptionMetricsResponse(rows, dayCountryRows, range);

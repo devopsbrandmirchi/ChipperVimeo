@@ -39,10 +39,15 @@ export function ErrorCard({
   title = "Something went wrong",
   message,
   onRetry,
+  action,
+  retryLabel = "Refresh",
 }: {
   title?: string;
   message?: string;
   onRetry?: () => void;
+  /** Custom action (e.g. client Refresh button). Takes precedence over onRetry. */
+  action?: ReactNode;
+  retryLabel?: string;
 }) {
   return (
     <Card className="border-red-200 dark:border-red-900">
@@ -53,11 +58,17 @@ export function ErrorCard({
           {message ? (
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">{message}</p>
           ) : null}
-          {onRetry ? (
-            <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>
-              Try again
-            </Button>
-          ) : null}
+          {action ??
+            (onRetry ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={onRetry}
+              >
+                {retryLabel}
+              </Button>
+            ) : null)}
         </div>
       </CardContent>
     </Card>

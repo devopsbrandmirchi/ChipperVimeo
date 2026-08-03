@@ -1,6 +1,7 @@
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
-import { ErrorCard, ModulePlaceholder } from "@/components/common/feedback";
+import { ModulePlaceholder } from "@/components/common/feedback";
+import { RefreshErrorCard } from "@/components/common/RefreshErrorCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
@@ -80,7 +81,7 @@ export default async function AnalyticsPage({
     return (
       <div className="space-y-6">
         <PageHeader title="Analytics" breadcrumbs={[{ label: "Analytics" }]} />
-        <ErrorCard
+        <RefreshErrorCard
           title="Unable to load analytics"
           message={loadError ?? "Missing analytics data"}
         />
@@ -102,7 +103,7 @@ export default async function AnalyticsPage({
       {gainLoss ? (
         <GainLossMetrics data={gainLoss} preset={gainLoss.preset || preset} />
       ) : (
-        <ErrorCard
+        <RefreshErrorCard
           title="Unable to load gain / loss metrics"
           message={
             gainLossError ??
