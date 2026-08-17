@@ -367,8 +367,8 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
     return this.timed("getSubscriptionGainLossMetrics", async () => {
       try {
         const range = resolveSubscriptionMetricsRange(filters);
-        const [rows, dayCountryRows] = await Promise.all([
-          this.subscriptionMetricsRepo.listMetrics({
+        const [grouped, dayCountryRows] = await Promise.all([
+          this.subscriptionMetricsRepo.listMetricsGrouped({
             startDate: range.startDate,
             endDate: range.endDate,
             platform: filters.platform,
@@ -392,7 +392,7 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
             }),
         ]);
 
-        return mapSubscriptionMetricsResponse(rows, dayCountryRows, range);
+        return mapSubscriptionMetricsResponse(grouped, dayCountryRows, range);
       } catch (error) {
         this.mapRepositoryError(error, "getSubscriptionGainLossMetrics");
       }

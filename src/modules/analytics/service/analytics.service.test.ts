@@ -117,6 +117,44 @@ function mockSubscriptionMetricsRepo(
         unique_customers_loss: 2,
       },
     ]),
+    listMetricsGrouped: vi.fn().mockResolvedValue({
+      byDay: [
+        {
+          report_date: "2026-07-20",
+          platform: "",
+          country: "",
+          product_id: "",
+          subscription_gain: 2,
+          subscription_loss: 1,
+          trial_gain: 3,
+          trial_loss: 1,
+          trial_conversion: 1,
+          combined_gain: 5,
+          combined_loss: 2,
+          unique_customers_gain: 4,
+          unique_customers_loss: 2,
+        },
+      ],
+      byPlatform: [
+        {
+          report_date: "",
+          platform: "Web",
+          country: "",
+          product_id: "",
+          subscription_gain: 2,
+          subscription_loss: 1,
+          trial_gain: 3,
+          trial_loss: 1,
+          trial_conversion: 1,
+          combined_gain: 5,
+          combined_loss: 2,
+          unique_customers_gain: 4,
+          unique_customers_loss: 2,
+        },
+      ],
+      byCountry: [],
+      byProduct: [],
+    }),
     listDayCountryMetrics: vi.fn().mockResolvedValue([]),
     ...overrides,
   } as unknown as SubscriptionMetricsRepository;
@@ -185,7 +223,7 @@ describe("AnalyticsService", () => {
       preset: "last7",
       groupBy: "day",
     });
-    expect(subMetrics.listMetrics).toHaveBeenCalled();
+    expect(subMetrics.listMetricsGrouped).toHaveBeenCalled();
     expect(data.source).toBe("subscription_events");
     expect(data.totals.subscriptionGain).toBe(2);
     expect(data.totals.trialGain).toBe(3);

@@ -7,6 +7,7 @@ import type { SubscriptionMetricsFilters } from "@/modules/analytics/dto/filters
 import type {
   SubscriptionMetricsDbRow,
   SubscriptionMetricsDayCountryDbRow,
+  SubscriptionMetricsGrouped,
 } from "@/modules/analytics/repository/subscription-metrics.repository";
 
 function num(value: unknown): number {
@@ -107,31 +108,79 @@ function withConversionRate(
   };
 }
 
+function toBreakdownRow(
+  row: SubscriptionMetricsDbRow,
+  mode: "day" | "platform" | "country" | "product",
+): SubscriptionGainLossRow {
+  const totals = withConversionRate({
+    subscriptionGain: num(row.subscription_gain),
+    subscriptionLoss: num(row.subscription_loss),
+    trialGain: num(row.trial_gain),
+    trialLoss: num(row.trial_loss),
+    trialConversion: num(row.trial_conversion),
+    combinedGain: num(row.combined_gain),
+    combinedLoss: num(row.combined_loss),
+    uniqueCustomersGain: num(row.unique_customers_gain),
+    uniqueCustomersLoss: num(row.unique_customers_loss),
+    conversionRate: 0,
+  });
+
+  if (mode === "day") {
+    return {
+      key: row.report_date,
+      label: row.report_date,
+      reportDate: row.report_date,
+      ...totals,
+    };
+  }
+  if (mode === "platform") {
+    return {
+      key: row.platform,
+      label: row.platform,
+      platform: row.platform,
+      ...totals,
+    };
+  }
+  if (mode === "country") {
+    return {
+      key: row.country,
+      label: row.country,
+      country: row.country,
+      ...totals,
+    };
+  }
+  return {
+    key: row.product_id,
+    label: row.product_id,
+    productId: row.product_id,
+    ...totals,
+  };
+}
+
+/** Legacy helper for tests that still pass fine-grained rows. */
 function groupRows(
   rows: SubscriptionMetricsDbRow[],
   mode: "day" | "platform" | "country" | "product",
 ): SubscriptionGainLossRow[] {
-  const map = new Map<string, SubscriptionGainLossTotals & { meta: Partial<SubscriptionGainLossRow> }>();
+  const map = new Map<
+    string,
+    SubscriptionGainLossTotals & { meta: Partial<SubscriptionGainLossRow> }
+  >();
 
   for (const row of rows) {
     let key: string;
-    let label: string;
     const meta: Partial<SubscriptionGainLossRow> = {};
     if (mode === "day") {
       key = row.report_date;
-      label = row.report_date;
       meta.reportDate = row.report_date;
     } else if (mode === "platform") {
       key = row.platform;
-      label = row.platform;
       meta.platform = row.platform;
     } else if (mode === "country") {
       key = row.country;
-      label = row.country;
       meta.country = row.country;
     } else {
       key = row.product_id;
-      label = row.product_id;
       meta.productId = row.product_id;
     }
 
@@ -145,7 +194,12 @@ function groupRows(
       const totals = withConversionRate(value);
       return {
         key,
-        label: value.meta.reportDate ?? value.meta.platform ?? value.meta.country ?? value.meta.productId ?? key,
+        label:
+          value.meta.reportDate ??
+          value.meta.platform ??
+          value.meta.country ??
+          value.meta.productId ??
+          key,
         ...value.meta,
         ...totals,
       };
@@ -154,14 +208,65 @@ function groupRows(
 }
 
 export function mapSubscriptionMetricsResponse(
-  rows: SubscriptionMetricsDbRow[],
+  grouped: SubscriptionMetricsGrouped | SubscriptionMetricsDbRow[],
   dayCountryRows: SubscriptionMetricsDayCountryDbRow[],
   range: { startDate: string; endDate: string; preset: string },
 ): SubscriptionMetricsResponse {
-  const totals = emptyTotals();
-  for (const row of rows) addRow(totals, row);
+  // Back-compat: tests may still pass a flat row array.
+  const grains: SubscriptionMetricsGrouped = Array.isArray(grouped)
+    ? {
+        byDay: grouped,
+        byPlatform: groupRows(grouped, "platform").map((r) => ({
+          report_date: "",
+          platform: r.platform ?? r.key,
+          country: "",
+          product_id: "",
+          subscription_gain: r.subscriptionGain,
+          subscription_loss: r.subscriptionLoss,
+          trial_gain: r.trialGain,
+          trial_loss: r.trialLoss,
+          trial_conversion: r.trialConversion,
+          combined_gain: r.combinedGain,
+          combined_loss: r.combinedLoss,
+          unique_customers_gain: r.uniqueCustomersGain,
+          unique_customers_loss: r.uniqueCustomersLoss,
+        })),
+        byCountry: groupRows(grouped, "country").map((r) => ({
+          report_date: "",
+          platform: "",
+          country: r.country ?? r.key,
+          product_id: "",
+          subscription_gain: r.subscriptionGain,
+          subscription_loss: r.subscriptionLoss,
+          trial_gain: r.trialGain,
+          trial_loss: r.trialLoss,
+          trial_conversion: r.trialConversion,
+          combined_gain: r.combinedGain,
+          combined_loss: r.combinedLoss,
+          unique_customers_gain: r.uniqueCustomersGain,
+          unique_customers_loss: r.uniqueCustomersLoss,
+        })),
+        byProduct: groupRows(grouped, "product").map((r) => ({
+          report_date: "",
+          platform: "",
+          country: "",
+          product_id: r.productId ?? r.key,
+          subscription_gain: r.subscriptionGain,
+          subscription_loss: r.subscriptionLoss,
+          trial_gain: r.trialGain,
+          trial_loss: r.trialLoss,
+          trial_conversion: r.trialConversion,
+          combined_gain: r.combinedGain,
+          combined_loss: r.combinedLoss,
+          unique_customers_gain: r.uniqueCustomersGain,
+          unique_customers_loss: r.uniqueCustomersLoss,
+        })),
+      }
+    : grouped;
 
-  // Exclude today: partial-day ingest makes current UTC day incomplete.
+  const totals = emptyTotals();
+  for (const row of grains.byDay) addRow(totals, row);
+
   const todayUtc = utcToday();
   const byDayCountry: SubscriptionGainLossRow[] = dayCountryRows
     .filter((row) => row.report_date < todayUtc)
@@ -176,7 +281,7 @@ export function mapSubscriptionMetricsResponse(
         combinedLoss: num(row.combined_loss),
         uniqueCustomersGain: num(row.unique_customers_gain),
         uniqueCustomersLoss: num(row.unique_customers_loss),
-        conversionRate: 0, // overwritten below
+        conversionRate: 0,
       };
 
       const totalsWithRate = withConversionRate(baseTotals);
@@ -193,7 +298,6 @@ export function mapSubscriptionMetricsResponse(
       };
     })
     .sort((a, b) => {
-      // Latest date first, then unique-customers gain within the day.
       const dayCmp = (b.reportDate ?? "").localeCompare(a.reportDate ?? "");
       if (dayCmp !== 0) return dayCmp;
       const gainCmp = b.uniqueCustomersGain - a.uniqueCustomersGain;
@@ -201,7 +305,11 @@ export function mapSubscriptionMetricsResponse(
       return b.combinedLoss - a.combinedLoss;
     });
 
-  const byPlatform = groupRows(rows, "platform");
+  const byPlatform = grains.byPlatform
+    .filter((r) => r.platform)
+    .map((r) => toBreakdownRow(r, "platform"))
+    .sort((a, b) => a.key.localeCompare(b.key));
+
   const platformTotal: SubscriptionGainLossRow = {
     key: "TOTAL",
     label: "TOTAL",
@@ -214,10 +322,19 @@ export function mapSubscriptionMetricsResponse(
     endDate: range.endDate,
     preset: range.preset,
     totals: withConversionRate(totals),
-    series: groupRows(rows, "day"),
+    series: grains.byDay
+      .filter((r) => r.report_date)
+      .map((r) => toBreakdownRow(r, "day"))
+      .sort((a, b) => a.key.localeCompare(b.key)),
     byPlatform: [...byPlatform, platformTotal],
-    byCountry: groupRows(rows, "country"),
-    byProduct: groupRows(rows, "product"),
+    byCountry: grains.byCountry
+      .filter((r) => r.country)
+      .map((r) => toBreakdownRow(r, "country"))
+      .sort((a, b) => a.key.localeCompare(b.key)),
+    byProduct: grains.byProduct
+      .filter((r) => r.product_id)
+      .map((r) => toBreakdownRow(r, "product"))
+      .sort((a, b) => a.key.localeCompare(b.key)),
     byDayCountry,
     source: "subscription_events",
   };
