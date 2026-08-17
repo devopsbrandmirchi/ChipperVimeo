@@ -26,9 +26,21 @@ export function DashboardMetrics({
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <MetricCard title="Total customers" value={totalCustomers} />
-      <MetricCard title="Active subscribers" value={activeSubscribers} />
-      <MetricCard title="Trials" value={trials} />
-      <MetricCard title="Cancelled" value={cancelled} />
+      <MetricCard
+        title="Active subscribers"
+        value={activeSubscribers}
+        hint="Open paid subscriptions (distinct customers)"
+      />
+      <MetricCard
+        title="Trials"
+        value={trials}
+        hint="Open free trials only (not ended/converted)"
+      />
+      <MetricCard
+        title="Cancelled"
+        value={cancelled}
+        hint="Cancelled and not expired (current stock)"
+      />
       <MetricCard
         title="Monthly revenue"
         value={revenueDisplay}
