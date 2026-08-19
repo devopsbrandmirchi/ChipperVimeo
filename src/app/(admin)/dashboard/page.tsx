@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { GainLossToolbar } from "@/components/analytics/GainLossToolbar";
+import { SubscriptionHealthMetrics } from "@/components/analytics/SubscriptionHealthMetrics";
 import { StatCard } from "@/components/cards/MetricCard";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
@@ -12,14 +13,17 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
 import { subscriptionMetricsPresetSchema } from "@/modules/analytics/dto/filters";
+import { mapSubscriptionHealthStock } from "@/modules/analytics/mappers/subscription-health.mappers";
 import { resolveSubscriptionMetricsRange } from "@/modules/analytics/mappers/subscription-metrics.mappers";
 import type {
+  ChurnAnalyticsResponse,
   CountryAnalyticsResponse,
   DailyAnalyticsResponse,
   DashboardResponse,
   PlatformAnalyticsResponse,
   ProductAnalyticsResponse,
   SubscriptionMetricsResponse,
+  TrialAnalyticsResponse,
 } from "@/modules/analytics/dto/responses";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -62,20 +66,28 @@ async function DashboardGainLoss({
   endDate?: string;
 }) {
   try {
-    const gainLossRes = await apiGetServer<SubscriptionMetricsResponse>(
-      "/analytics/subscription-metrics",
-      {
-        preset: startDate || endDate ? "custom" : preset,
-        startDate,
-        endDate,
-      },
-    );
+    const [gainLossRes, churn, trials] = await Promise.all([
+      apiGetServer<SubscriptionMetricsResponse>(
+        "/analytics/subscription-metrics",
+        {
+          preset: startDate || endDate ? "custom" : preset,
+          startDate,
+          endDate,
+        },
+      ),
+      safeGet<ChurnAnalyticsResponse>("/analytics/churn"),
+      safeGet<TrialAnalyticsResponse>("/analytics/trials"),
+    ]);
+    const stock = mapSubscriptionHealthStock(churn, trials);
     return (
-      <GainLossMetrics
-        data={gainLossRes.data}
-        preset={gainLossRes.data.preset || preset}
-        showHeader={false}
-      />
+      <div className="space-y-8">
+        <GainLossMetrics
+          data={gainLossRes.data}
+          preset={gainLossRes.data.preset || preset}
+          showHeader={false}
+        />
+        <SubscriptionHealthMetrics data={gainLossRes.data} stock={stock} />
+      </div>
     );
   } catch (error) {
     const message =

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { GainLossToolbar } from "@/components/analytics/GainLossToolbar";
+import { SubscriptionHealthMetrics } from "@/components/analytics/SubscriptionHealthMetrics";
 import { StatCard } from "@/components/cards/MetricCard";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { LoadingSpinner, ModulePlaceholder } from "@/components/common/feedback";
@@ -11,8 +12,13 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
 import { subscriptionMetricsPresetSchema } from "@/modules/analytics/dto/filters";
+import { mapSubscriptionHealthStock } from "@/modules/analytics/mappers/subscription-health.mappers";
 import { resolveSubscriptionMetricsRange } from "@/modules/analytics/mappers/subscription-metrics.mappers";
-import type { SubscriptionMetricsResponse } from "@/modules/analytics/dto/responses";
+import type {
+  ChurnAnalyticsResponse,
+  SubscriptionMetricsResponse,
+  TrialAnalyticsResponse,
+} from "@/modules/analytics/dto/responses";
 import type {
   AnalyticsOverview,
   DimensionSummary,
@@ -32,6 +38,18 @@ function parsePreset(value: string | undefined): MetricsPreset {
   return parsed.success ? parsed.data : "yesterday";
 }
 
+async function safeGet<T>(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined | null>,
+): Promise<T | null> {
+  try {
+    const res = await apiGetServer<T>(path, params);
+    return res.data;
+  } catch {
+    return null;
+  }
+}
+
 async function AnalyticsGainLoss({
   preset,
   startDate,
@@ -42,20 +60,28 @@ async function AnalyticsGainLoss({
   endDate?: string;
 }) {
   try {
-    const gainLossRes = await apiGetServer<SubscriptionMetricsResponse>(
-      "/analytics/subscription-metrics",
-      {
-        preset: startDate || endDate ? "custom" : preset,
-        startDate,
-        endDate,
-      },
-    );
+    const [gainLossRes, churn, trials] = await Promise.all([
+      apiGetServer<SubscriptionMetricsResponse>(
+        "/analytics/subscription-metrics",
+        {
+          preset: startDate || endDate ? "custom" : preset,
+          startDate,
+          endDate,
+        },
+      ),
+      safeGet<ChurnAnalyticsResponse>("/analytics/churn"),
+      safeGet<TrialAnalyticsResponse>("/analytics/trials"),
+    ]);
+    const stock = mapSubscriptionHealthStock(churn, trials);
     return (
-      <GainLossMetrics
-        data={gainLossRes.data}
-        preset={gainLossRes.data.preset || preset}
-        showHeader={false}
-      />
+      <div className="space-y-8">
+        <GainLossMetrics
+          data={gainLossRes.data}
+          preset={gainLossRes.data.preset || preset}
+          showHeader={false}
+        />
+        <SubscriptionHealthMetrics data={gainLossRes.data} stock={stock} />
+      </div>
     );
   } catch (error) {
     const message =
