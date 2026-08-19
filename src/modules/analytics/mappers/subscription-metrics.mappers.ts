@@ -20,12 +20,21 @@ export function utcToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+type SubscriptionMetricsRangeInput = Pick<
+  Partial<SubscriptionMetricsFilters>,
+  "preset" | "startDate" | "endDate"
+>;
+
 export function resolveSubscriptionMetricsRange(
-  filters: SubscriptionMetricsFilters,
-): { startDate: string; endDate: string; preset: string } {
+  filters: SubscriptionMetricsRangeInput,
+): {
+  startDate: string;
+  endDate: string;
+  preset: NonNullable<SubscriptionMetricsFilters["preset"]>;
+} {
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
-  const preset = filters.preset ?? "last7";
+  const preset = filters.preset ?? "yesterday";
 
   if (preset === "custom" || filters.startDate || filters.endDate) {
     let start = filters.startDate ?? filters.endDate ?? todayStr;
@@ -56,14 +65,20 @@ export function resolveSubscriptionMetricsRange(
       preset,
     };
   }
-  // last7
-  const from = new Date(today);
-  from.setUTCDate(from.getUTCDate() - 6);
-  return {
-    startDate: from.toISOString().slice(0, 10),
-    endDate: todayStr,
-    preset: "last7",
-  };
+  if (preset === "last7") {
+    const from = new Date(today);
+    from.setUTCDate(from.getUTCDate() - 6);
+    return {
+      startDate: from.toISOString().slice(0, 10),
+      endDate: todayStr,
+      preset: "last7",
+    };
+  }
+  // default: yesterday
+  const y = new Date(today);
+  y.setUTCDate(y.getUTCDate() - 1);
+  const s = y.toISOString().slice(0, 10);
+  return { startDate: s, endDate: s, preset: "yesterday" };
 }
 
 function emptyTotals(): SubscriptionGainLossTotals {

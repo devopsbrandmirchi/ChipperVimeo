@@ -12,29 +12,34 @@ function fmt(n: number): string {
 export function GainLossMetrics({
   data,
   preset,
+  showHeader = true,
 }: {
   data: SubscriptionMetricsResponse;
   preset: string;
+  /** Set false when GainLossToolbar is rendered outside Suspense. */
+  showHeader?: boolean;
 }) {
   const t = data.totals;
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">
-            Subscription &amp; trial gain / loss
-          </h2>
-          <p className="text-sm text-[var(--muted-foreground)]">
-            {data.startDate} → {data.endDate} (UTC) · source: {data.source}
-          </p>
+      {showHeader ? (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">
+              Subscription &amp; trial gain / loss
+            </h2>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              {data.startDate} → {data.endDate} (UTC) · source: {data.source}
+            </p>
+          </div>
+          <DateRangeFilter
+            preset={preset}
+            startDate={data.startDate}
+            endDate={data.endDate}
+          />
         </div>
-        <DateRangeFilter
-          preset={preset}
-          startDate={data.startDate}
-          endDate={data.endDate}
-        />
-      </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard

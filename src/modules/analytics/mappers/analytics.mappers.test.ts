@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { analyticsFiltersSchema } from "@/modules/analytics/dto/filters";
-import { mapDashboard } from "@/modules/analytics/mappers/analytics.mappers";
+import {
+  isDashboardSnapshotStale,
+  mapDashboard,
+} from "@/modules/analytics/mappers/analytics.mappers";
 import type { DashboardRow } from "@/modules/analytics/types/rows";
 
 describe("analyticsFiltersSchema", () => {
@@ -60,5 +63,66 @@ describe("mapDashboard", () => {
     const d = mapDashboard(row);
     expect(d.activeSubscribers).toBe(5);
     expect(d.arrCents).toBe(12000);
+    expect(d.cancelledToday).toBe(0);
+  });
+
+  it("maps cancelled_today when present", () => {
+    const d = mapDashboard({
+      id: 1,
+      total_customers: 1,
+      new_customers_today: 0,
+      active_subscribers: 1,
+      paused_subscriptions: 0,
+      cancelled_subscriptions: 0,
+      expired_subscriptions: 0,
+      free_trial_subscriptions: 0,
+      renewals_today: 0,
+      cancelled_today: 7,
+      charge_failures: 0,
+      recovered_payments: 0,
+      revenue_today_cents: 0,
+      revenue_week_cents: 0,
+      revenue_month_cents: 0,
+      revenue_year_cents: 0,
+      mrr_cents: 0,
+      arr_cents: 0,
+      arpu_cents: 0,
+      arppu_proxy_cents: 0,
+      trial_conversion_pct: 0,
+      churn_rate_pct: 0,
+      retention_rate_pct: 0,
+      payment_recovery_rate_pct: 0,
+      refreshed_at: "2026-08-19T00:00:00Z",
+    });
+    expect(d.cancelledToday).toBe(7);
+  });
+});
+
+describe("isDashboardSnapshotStale", () => {
+  it("is stale when refreshed on a prior UTC day", () => {
+    expect(
+      isDashboardSnapshotStale(
+        "2026-08-17T11:23:14.000Z",
+        new Date("2026-08-19T06:00:00.000Z"),
+      ),
+    ).toBe(true);
+  });
+
+  it("is fresh within the same UTC day and max age", () => {
+    expect(
+      isDashboardSnapshotStale(
+        "2026-08-19T05:00:00.000Z",
+        new Date("2026-08-19T05:30:00.000Z"),
+      ),
+    ).toBe(false);
+  });
+
+  it("is stale when older than max age on the same day", () => {
+    expect(
+      isDashboardSnapshotStale(
+        "2026-08-19T03:00:00.000Z",
+        new Date("2026-08-19T05:00:00.000Z"),
+      ),
+    ).toBe(true);
   });
 });

@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +96,15 @@ export function DateRangeFilter({
   const router = useRouter();
   const pathname = usePathname();
   const today = utcTodayYmd();
+  const [isPending, startTransition] = useTransition();
+  const [pendingPreset, setPendingPreset] = useState<string | null>(null);
+
+  // Clear optimistic selection once server props catch up.
+  useEffect(() => {
+    setPendingPreset(null);
+  }, [preset, startDate, endDate]);
+
+  const activePreset = pendingPreset ?? preset;
 
   const [open, setOpen] = useState(preset === "custom");
   const [draftStart, setDraftStart] = useState(startDate);
@@ -110,7 +119,10 @@ export function DateRangeFilter({
 
   function navigatePreset(id: string) {
     setOpen(false);
-    router.push(`${pathname}?preset=${id}`);
+    setPendingPreset(id);
+    startTransition(() => {
+      router.push(`${pathname}?preset=${id}`);
+    });
   }
 
   function applyCustom(start: string, end: string) {
@@ -124,9 +136,12 @@ export function DateRangeFilter({
     if (compareYmd(e, today) > 0) e = today;
     if (compareYmd(s, e) > 0) s = e;
     setOpen(false);
-    router.push(
-      `${pathname}?preset=custom&startDate=${encodeURIComponent(s)}&endDate=${encodeURIComponent(e)}`,
-    );
+    setPendingPreset("custom");
+    startTransition(() => {
+      router.push(
+        `${pathname}?preset=custom&startDate=${encodeURIComponent(s)}&endDate=${encodeURIComponent(e)}`,
+      );
+    });
   }
 
   function onDayClick(day: Date) {
@@ -166,7 +181,7 @@ export function DateRangeFilter({
     }
   }
 
-  const isCustom = preset === "custom";
+  const isCustom = activePreset === "custom";
 
   return (
     <div className="relative flex flex-wrap items-center gap-2">
@@ -174,9 +189,11 @@ export function DateRangeFilter({
         <Button
           key={p.id}
           size="sm"
-          variant={preset === p.id ? "default" : "outline"}
+          variant={activePreset === p.id ? "default" : "outline"}
           onClick={() => navigatePreset(p.id)}
           type="button"
+          disabled={isPending}
+          aria-pressed={activePreset === p.id}
         >
           {p.label}
         </Button>
@@ -185,6 +202,7 @@ export function DateRangeFilter({
         size="sm"
         variant={isCustom || open ? "default" : "outline"}
         type="button"
+        disabled={isPending}
         onClick={() => {
           setDraftStart(startDate);
           setDraftEnd(endDate);
@@ -195,6 +213,12 @@ export function DateRangeFilter({
         <CalendarDays className="size-3.5" />
         Custom
       </Button>
+      {isPending ? (
+        <span className="inline-flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
+          <Loader2 className="size-3.5 animate-spin" />
+          Updating…
+        </span>
+      ) : null}
 
       {open ? (
         <div className="absolute right-0 top-full z-40 mt-2 w-[min(100vw-2rem,40rem)] rounded-xl border border-[var(--border)] bg-[var(--background)] p-4 shadow-lg">

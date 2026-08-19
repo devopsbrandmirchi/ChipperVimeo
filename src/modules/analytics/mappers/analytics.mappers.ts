@@ -48,6 +48,7 @@ export function mapDashboard(row: DashboardRow | null): DashboardResponse {
     expired: num(row.expired_subscriptions),
     freeTrials: num(row.free_trial_subscriptions),
     renewalsToday: num(row.renewals_today),
+    cancelledToday: num(row.cancelled_today),
     chargeFailures: num(row.charge_failures),
     recoveredPayments: num(row.recovered_payments),
     revenueTodayCents: num(row.revenue_today_cents),
@@ -76,6 +77,7 @@ export function emptyDashboard(): DashboardResponse {
     expired: 0,
     freeTrials: 0,
     renewalsToday: 0,
+    cancelledToday: 0,
     chargeFailures: 0,
     recoveredPayments: 0,
     revenueTodayCents: 0,
@@ -92,6 +94,21 @@ export function emptyDashboard(): DashboardResponse {
     paymentRecoveryRatePct: 0,
     refreshedAt: null,
   };
+}
+
+/** True when "today" KPIs would be wrong (different UTC day) or snapshot is >1h old. */
+export function isDashboardSnapshotStale(
+  refreshedAt: string | null | undefined,
+  now: Date = new Date(),
+  maxAgeMs = 60 * 60 * 1000,
+): boolean {
+  if (!refreshedAt) return true;
+  const refreshed = new Date(refreshedAt);
+  if (Number.isNaN(refreshed.getTime())) return true;
+  const refreshedDay = refreshed.toISOString().slice(0, 10);
+  const todayUtc = now.toISOString().slice(0, 10);
+  if (refreshedDay !== todayUtc) return true;
+  return now.getTime() - refreshed.getTime() > maxAgeMs;
 }
 
 export function mapOverviewFromDashboard(

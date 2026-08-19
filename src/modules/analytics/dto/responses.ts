@@ -7,6 +7,7 @@ export type DashboardResponse = {
   expired: number;
   freeTrials: number;
   renewalsToday: number;
+  cancelledToday: number;
   chargeFailures: number;
   recoveredPayments: number;
   revenueTodayCents: number;
@@ -206,7 +207,7 @@ export type DailyAnalyticsResponse = {
     activeCustomers: number;
     returningCustomers: number;
   }>;
-  source: "daily_snapshots";
+  source: "daily_snapshots" | "mv_daily_metrics";
 };
 
 /** Gain/loss reporting from subscription_events (Phase 9.5). */

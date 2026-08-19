@@ -100,7 +100,7 @@ export const subscriptionMetricsGroupBySchema = z.enum([
 ]);
 
 export const subscriptionMetricsFiltersSchema = z.object({
-  preset: subscriptionMetricsPresetSchema.optional().default("last7"),
+  preset: subscriptionMetricsPresetSchema.optional().default("yesterday"),
   startDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

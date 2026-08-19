@@ -33,10 +33,19 @@ function row(
 }
 
 describe("resolveSubscriptionMetricsRange", () => {
+  it("defaults to yesterday when preset omitted", () => {
+    const range = resolveSubscriptionMetricsRange({});
+    const today = new Date();
+    const y = new Date(today);
+    y.setUTCDate(y.getUTCDate() - 1);
+    expect(range.preset).toBe("yesterday");
+    expect(range.startDate).toBe(y.toISOString().slice(0, 10));
+    expect(range.endDate).toBe(range.startDate);
+  });
+
   it("resolves last7 as inclusive 7 UTC days ending today", () => {
     const range = resolveSubscriptionMetricsRange({
       preset: "last7",
-      groupBy: "day",
     });
     const start = new Date(`${range.startDate}T00:00:00.000Z`);
     const end = new Date(`${range.endDate}T00:00:00.000Z`);
@@ -51,7 +60,6 @@ describe("resolveSubscriptionMetricsRange", () => {
       preset: "custom",
       startDate: "2026-07-01",
       endDate: "2026-07-10",
-      groupBy: "day",
     });
     expect(range).toEqual({
       startDate: "2026-07-01",
@@ -65,7 +73,6 @@ describe("resolveSubscriptionMetricsRange", () => {
       preset: "custom",
       startDate: "2026-07-10",
       endDate: "2026-07-01",
-      groupBy: "day",
     });
     expect(range.startDate).toBe("2026-07-01");
     expect(range.endDate).toBe("2026-07-10");

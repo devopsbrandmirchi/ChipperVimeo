@@ -1,10 +1,17 @@
+import { Suspense } from "react";
+import { z } from "zod";
+
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
+import { GainLossToolbar } from "@/components/analytics/GainLossToolbar";
+import { StatCard } from "@/components/cards/MetricCard";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
-import { ModulePlaceholder } from "@/components/common/feedback";
+import { LoadingSpinner, ModulePlaceholder } from "@/components/common/feedback";
 import { RefreshErrorCard } from "@/components/common/RefreshErrorCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
+import { subscriptionMetricsPresetSchema } from "@/modules/analytics/dto/filters";
+import { resolveSubscriptionMetricsRange } from "@/modules/analytics/mappers/subscription-metrics.mappers";
 import type { SubscriptionMetricsResponse } from "@/modules/analytics/dto/responses";
 import type {
   AnalyticsOverview,
@@ -13,10 +20,68 @@ import type {
 } from "@/services/interfaces/analytics-service.interface";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+type MetricsPreset = z.infer<typeof subscriptionMetricsPresetSchema>;
 
 function first(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
+}
+
+function parsePreset(value: string | undefined): MetricsPreset {
+  const parsed = subscriptionMetricsPresetSchema.safeParse(value ?? "yesterday");
+  return parsed.success ? parsed.data : "yesterday";
+}
+
+async function AnalyticsGainLoss({
+  preset,
+  startDate,
+  endDate,
+}: {
+  preset: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  try {
+    const gainLossRes = await apiGetServer<SubscriptionMetricsResponse>(
+      "/analytics/subscription-metrics",
+      {
+        preset: startDate || endDate ? "custom" : preset,
+        startDate,
+        endDate,
+      },
+    );
+    return (
+      <GainLossMetrics
+        data={gainLossRes.data}
+        preset={gainLossRes.data.preset || preset}
+        showHeader={false}
+      />
+    );
+  } catch (error) {
+    const message =
+      error instanceof ApiClientError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "Apply migration 022 and ensure subscription_events are populated.";
+    return (
+      <RefreshErrorCard
+        title="Unable to load gain / loss metrics"
+        message={message}
+      />
+    );
+  }
+}
+
+function GainLossFallback() {
+  return (
+    <StatCard title="Metrics">
+      <div className="flex items-center gap-2 py-8 text-sm text-[var(--muted-foreground)]">
+        <LoadingSpinner />
+        Loading gain / loss metrics…
+      </div>
+    </StatCard>
+  );
 }
 
 export default async function AnalyticsPage({
@@ -25,17 +90,20 @@ export default async function AnalyticsPage({
   searchParams: SearchParams;
 }) {
   const sp = await searchParams;
-  const preset = first(sp.preset) ?? "last7";
+  const presetParam = parsePreset(first(sp.preset));
   const startDate = first(sp.startDate);
   const endDate = first(sp.endDate);
+  const range = resolveSubscriptionMetricsRange({
+    preset: startDate || endDate ? "custom" : presetParam,
+    startDate,
+    endDate,
+  });
 
   let overview: AnalyticsOverview | null = null;
   let revenue: RevenueSummary | null = null;
   let countries: DimensionSummary | null = null;
   let platforms: DimensionSummary | null = null;
-  let gainLoss: SubscriptionMetricsResponse | null = null;
   let loadError: string | null = null;
-  let gainLossError: string | null = null;
 
   try {
     const [overviewRes, revenueRes, countriesRes, platformsRes] =
@@ -56,25 +124,6 @@ export default async function AnalyticsPage({
         : error instanceof Error
           ? error.message
           : "Request failed";
-  }
-
-  try {
-    const gainLossRes = await apiGetServer<SubscriptionMetricsResponse>(
-      "/analytics/subscription-metrics",
-      {
-        preset: startDate || endDate ? "custom" : preset,
-        startDate,
-        endDate,
-      },
-    );
-    gainLoss = gainLossRes.data;
-  } catch (error) {
-    gainLossError =
-      error instanceof ApiClientError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : "Failed to load gain/loss metrics";
   }
 
   if (loadError || !overview || !revenue || !countries || !platforms) {
@@ -100,17 +149,20 @@ export default async function AnalyticsPage({
         ]}
       />
 
-      {gainLoss ? (
-        <GainLossMetrics data={gainLoss} preset={gainLoss.preset || preset} />
-      ) : (
-        <RefreshErrorCard
-          title="Unable to load gain / loss metrics"
-          message={
-            gainLossError ??
-            "Apply migration 022 and ensure subscription_events are populated."
-          }
+      <section className="space-y-4">
+        <GainLossToolbar
+          preset={range.preset}
+          startDate={range.startDate}
+          endDate={range.endDate}
         />
-      )}
+        <Suspense fallback={<GainLossFallback />}>
+          <AnalyticsGainLoss
+            preset={presetParam}
+            startDate={startDate}
+            endDate={endDate}
+          />
+        </Suspense>
+      </section>
 
       <ModulePlaceholder
         title="Snapshot overview"

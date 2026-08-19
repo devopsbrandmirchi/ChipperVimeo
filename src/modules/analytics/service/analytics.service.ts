@@ -37,6 +37,7 @@ import {
   mapRevenue,
   mapSubscriptions,
   mapTrials,
+  isDashboardSnapshotStale,
 } from "@/modules/analytics/mappers/analytics.mappers";
 import {
   defaultLast30DaysFilters,
@@ -49,6 +50,7 @@ import {
   mapDailySubscriptionSeries,
   mapDailyTrialSeries,
   mapDailyUmbrella,
+  mapDailyUmbrellaFromMv,
 } from "@/modules/analytics/mappers/daily.mappers";
 import {
   mapSubscriptionMetricsResponse,
@@ -148,7 +150,26 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
   async getDashboard(): Promise<DashboardResponse> {
     return this.timed("getDashboard", async () => {
       try {
-        const row = await this.repo.getDashboard();
+        let row = await this.repo.getDashboard();
+        if (isDashboardSnapshotStale(row?.refreshed_at)) {
+          try {
+            await this.repo.refresh("dashboard");
+            row = await this.repo.getDashboard();
+            this.logger.info("Dashboard snapshot refreshed", {
+              action: "dashboard_auto_refresh",
+              refreshedAt: row?.refreshed_at ?? null,
+            });
+          } catch (error) {
+            this.logger.warn(
+              "Dashboard auto-refresh failed; serving cached snapshot",
+              {
+                action: "dashboard_auto_refresh_failed",
+                error: error instanceof Error ? error.message : "unknown",
+                refreshedAt: row?.refreshed_at ?? null,
+              },
+            );
+          }
+        }
         return mapDashboard(row);
       } catch (error) {
         this.mapRepositoryError(error, "getDashboard");
@@ -346,6 +367,15 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
           this.dailyRepo.listPaymentMetrics(range),
           this.dailyRepo.listCustomerMetrics(range),
         ]);
+        const hasSnapshots =
+          subscriptions.length > 0 ||
+          payments.length > 0 ||
+          customers.length > 0 ||
+          trials.length > 0;
+        if (!hasSnapshots) {
+          const mvRows = await this.repo.getDailyMetrics(range);
+          return mapDailyUmbrellaFromMv(mvRows);
+        }
         return mapDailyUmbrella({
           subscriptions,
           trials,
@@ -360,7 +390,7 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
 
   async getSubscriptionGainLossMetrics(
     filters: SubscriptionMetricsFilters = {
-      preset: "last7",
+      preset: "yesterday",
       groupBy: "day",
     },
   ): Promise<SubscriptionMetricsResponse> {

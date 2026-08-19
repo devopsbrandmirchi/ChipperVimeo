@@ -8,6 +8,8 @@ export type DashboardRow = {
   expired_subscriptions: number;
   free_trial_subscriptions: number;
   renewals_today: number;
+  /** Present after migration 034; treat missing as 0. */
+  cancelled_today?: number;
   charge_failures: number;
   recovered_payments: number;
   revenue_today_cents: number;

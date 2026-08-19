@@ -61,4 +61,20 @@ export async function apiGetClient<T>(
   return parseResponse<T>(response);
 }
 
+export async function apiPostClient<T>(
+  path: string,
+  body?: unknown,
+): Promise<ApiResult<T>> {
+  const response = await fetch(`/api/v1${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body ?? {}),
+  });
+  return parseResponse<T>(response);
+}
+
 export { buildQuery, parseResponse };

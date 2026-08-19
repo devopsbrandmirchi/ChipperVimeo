@@ -34,7 +34,7 @@ function mockRepo(
       churn_rate_pct: 5,
       retention_rate_pct: 95,
       payment_recovery_rate_pct: 0,
-      refreshed_at: "2026-07-25T00:00:00Z",
+      refreshed_at: new Date().toISOString(),
     }),
     listCountryMetrics: vi.fn().mockResolvedValue([]),
     listPlatformMetrics: vi.fn().mockResolvedValue([]),
@@ -178,6 +178,72 @@ describe("AnalyticsService", () => {
     expect(dashboard.mrrCents).toBe(100);
   });
 
+  it("auto-refreshes dashboard when snapshot is from a prior UTC day", async () => {
+    const repo = mockRepo({
+      getDashboard: vi
+        .fn()
+        .mockResolvedValueOnce({
+          id: 1,
+          total_customers: 10,
+          new_customers_today: 0,
+          active_subscribers: 4,
+          paused_subscriptions: 0,
+          cancelled_subscriptions: 1,
+          expired_subscriptions: 0,
+          free_trial_subscriptions: 2,
+          renewals_today: 0,
+          cancelled_today: 0,
+          charge_failures: 0,
+          recovered_payments: 0,
+          revenue_today_cents: 0,
+          revenue_week_cents: 0,
+          revenue_month_cents: 500,
+          revenue_year_cents: 500,
+          mrr_cents: 100,
+          arr_cents: 1200,
+          arpu_cents: 25,
+          arppu_proxy_cents: 50,
+          trial_conversion_pct: 50,
+          churn_rate_pct: 5,
+          retention_rate_pct: 95,
+          payment_recovery_rate_pct: 0,
+          refreshed_at: "2026-08-17T11:23:14.000Z",
+        })
+        .mockResolvedValueOnce({
+          id: 1,
+          total_customers: 10,
+          new_customers_today: 12,
+          active_subscribers: 4,
+          paused_subscriptions: 0,
+          cancelled_subscriptions: 1,
+          expired_subscriptions: 0,
+          free_trial_subscriptions: 2,
+          renewals_today: 3,
+          cancelled_today: 1,
+          charge_failures: 0,
+          recovered_payments: 0,
+          revenue_today_cents: 2500,
+          revenue_week_cents: 2500,
+          revenue_month_cents: 500,
+          revenue_year_cents: 500,
+          mrr_cents: 100,
+          arr_cents: 1200,
+          arpu_cents: 25,
+          arppu_proxy_cents: 50,
+          trial_conversion_pct: 50,
+          churn_rate_pct: 5,
+          retention_rate_pct: 95,
+          payment_recovery_rate_pct: 0,
+          refreshed_at: new Date().toISOString(),
+        }),
+    });
+    const service = createService(repo);
+    const dashboard = await service.getDashboard();
+    expect(repo.refresh).toHaveBeenCalledWith("dashboard");
+    expect(dashboard.newCustomersToday).toBe(12);
+    expect(dashboard.cancelledToday).toBe(1);
+  });
+
   it("builds Phase 8 compatible overview", async () => {
     const service = createService();
     const overview = await service.getOverview();
@@ -220,7 +286,7 @@ describe("AnalyticsService", () => {
     const subMetrics = mockSubscriptionMetricsRepo();
     const service = createService(mockRepo(), mockDailyRepo(), subMetrics);
     const data = await service.getSubscriptionGainLossMetrics({
-      preset: "last7",
+      preset: "yesterday",
       groupBy: "day",
     });
     expect(subMetrics.listMetricsGrouped).toHaveBeenCalled();
@@ -228,5 +294,37 @@ describe("AnalyticsService", () => {
     expect(data.totals.subscriptionGain).toBe(2);
     expect(data.totals.trialGain).toBe(3);
     expect(data.byPlatform.some((r) => r.key === "TOTAL")).toBe(true);
+  });
+
+  it("falls back to mv_daily_metrics when daily snapshots are empty", async () => {
+    const repo = mockRepo({
+      getDailyMetrics: vi.fn().mockResolvedValue([
+        {
+          metric_date: "2026-08-01",
+          new_customers: 5,
+          new_subscriptions: 3,
+          new_trials: 1,
+          cancellations: 1,
+          payment_attempts: 4,
+          successful_payments: 3,
+          failed_payments: 1,
+          revenue_cents: 1200,
+          refreshed_at: "2026-08-19T00:00:00Z",
+        },
+      ]),
+    });
+    const daily = mockDailyRepo({
+      listSubscriptionMetrics: vi.fn().mockResolvedValue([]),
+      listPaymentMetrics: vi.fn().mockResolvedValue([]),
+      listCustomerMetrics: vi.fn().mockResolvedValue([]),
+      listTrialMetrics: vi.fn().mockResolvedValue([]),
+    });
+    const service = createService(repo, daily);
+    const data = await service.getDailyAnalytics();
+    expect(repo.getDailyMetrics).toHaveBeenCalled();
+    expect(data.source).toBe("mv_daily_metrics");
+    expect(data.customers[0]?.newCustomers).toBe(5);
+    expect(data.payments[0]?.revenueCents).toBe(1200);
+    expect(data.subscriptions[0]?.netGrowth).toBe(2);
   });
 });

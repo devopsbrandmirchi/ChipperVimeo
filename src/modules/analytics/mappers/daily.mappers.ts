@@ -488,6 +488,71 @@ export function mapDailyUmbrella(input: {
   };
 }
 
+/** Fallback when analytics.daily_* snapshot tables are empty. */
+export function mapDailyUmbrellaFromMv(
+  rows: Array<{
+    metric_date: string;
+    new_customers: number;
+    new_subscriptions: number;
+    new_trials: number;
+    cancellations: number;
+    payment_attempts: number;
+    successful_payments: number;
+    failed_payments: number;
+    revenue_cents: number;
+  }>,
+): DailyAnalyticsResponse {
+  const sorted = [...rows].sort((a, b) =>
+    a.metric_date.localeCompare(b.metric_date),
+  );
+  return {
+    subscriptions: sorted.map((r) => {
+      const news = num(r.new_subscriptions);
+      const cancels = num(r.cancellations);
+      return {
+        date: r.metric_date,
+        newSubscriptions: news,
+        renewals: 0,
+        cancellations: cancels,
+        expirations: 0,
+        paused: 0,
+        resumed: 0,
+        activeSubscriptions: 0,
+        netGrowth: news - cancels,
+        churnRate: 0,
+      };
+    }),
+    trials: sorted.map((r) => ({
+      date: r.metric_date,
+      trialsStarted: num(r.new_trials),
+      trialsConverted: 0,
+      trialsExpired: 0,
+      conversionRate: 0,
+    })),
+    payments: sorted.map((r) => {
+      const ok = num(r.successful_payments);
+      const fail = num(r.failed_payments);
+      const attempts = num(r.payment_attempts) || ok + fail;
+      return {
+        date: r.metric_date,
+        successfulPayments: ok,
+        failedPayments: fail,
+        recoveredPayments: 0,
+        paymentSuccessRate:
+          attempts > 0 ? Number(((ok / attempts) * 100).toFixed(2)) : 0,
+        revenueCents: num(r.revenue_cents),
+      };
+    }),
+    customers: sorted.map((r) => ({
+      date: r.metric_date,
+      newCustomers: num(r.new_customers),
+      activeCustomers: 0,
+      returningCustomers: 0,
+    })),
+    source: "mv_daily_metrics",
+  };
+}
+
 export function defaultLast30DaysFilters(
   filters: AnalyticsFilters,
 ): AnalyticsFilters {
