@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -13,7 +13,6 @@ import {
 } from "@/auth/types/schemas";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
@@ -44,8 +43,9 @@ export function LoginForm() {
         next && next.startsWith("/") && !next.startsWith("//")
           ? next
           : "/dashboard";
-      router.replace(safeNext);
-      router.refresh();
+      // Hard navigate once: avoids router.replace + refresh double-fetching
+      // the heavy dashboard RSC while the button stays on "Signing in…".
+      window.location.assign(safeNext);
     } catch (error) {
       setFormError(
         error instanceof Error ? error.message : "Unable to sign in",
@@ -86,6 +86,7 @@ export function LoginForm() {
           </label>
           <Link
             href="/forgot-password"
+            prefetch={false}
             className="text-xs font-medium text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400"
           >
             Forgot password?

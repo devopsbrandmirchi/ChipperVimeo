@@ -1,6 +1,10 @@
+import { Suspense } from "react";
+
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
+import { StatCard } from "@/components/cards/MetricCard";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
+import { LoadingSpinner } from "@/components/common/feedback";
 import { RefreshErrorCard } from "@/components/common/RefreshErrorCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
@@ -19,6 +23,57 @@ function first(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+async function DashboardGainLoss({
+  preset,
+  startDate,
+  endDate,
+}: {
+  preset: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  try {
+    const gainLossRes = await apiGetServer<SubscriptionMetricsResponse>(
+      "/analytics/subscription-metrics",
+      {
+        preset: startDate || endDate ? "custom" : preset,
+        startDate,
+        endDate,
+      },
+    );
+    return (
+      <GainLossMetrics
+        data={gainLossRes.data}
+        preset={gainLossRes.data.preset || preset}
+      />
+    );
+  } catch (error) {
+    const message =
+      error instanceof ApiClientError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "Gain/loss metrics are temporarily unavailable.";
+    return (
+      <RefreshErrorCard
+        title="Unable to load gain / loss metrics"
+        message={message}
+      />
+    );
+  }
+}
+
+function GainLossFallback() {
+  return (
+    <StatCard title="Subscription & trial gain / loss">
+      <div className="flex items-center gap-2 py-8 text-sm text-[var(--muted-foreground)]">
+        <LoadingSpinner />
+        Loading gain / loss metrics…
+      </div>
+    </StatCard>
+  );
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -32,37 +87,19 @@ export default async function DashboardPage({
   let overview: AnalyticsOverview | null = null;
   let revenue: RevenueSummary | null = null;
   let totalCustomers = 0;
-  let gainLoss: SubscriptionMetricsResponse | null = null;
   let loadError: string | null = null;
-  let gainLossError: string | null = null;
 
   try {
-    const [overviewRes, revenueRes, customersRes, gainLossRes] =
-      await Promise.all([
-        apiGetServer<AnalyticsOverview>("/analytics/overview"),
-        apiGetServer<RevenueSummary>("/analytics/revenue"),
-        apiGetServer<Customer[]>("/customers", { page: 1, pageSize: 1 }),
-        apiGetServer<SubscriptionMetricsResponse>(
-          "/analytics/subscription-metrics",
-          {
-            preset: startDate || endDate ? "custom" : preset,
-            startDate,
-            endDate,
-          },
-        ).catch((error) => {
-          gainLossError =
-            error instanceof ApiClientError
-              ? error.message
-              : error instanceof Error
-                ? error.message
-                : "Failed to load gain/loss metrics";
-          return null;
-        }),
-      ]);
+    // Keep the critical path light so login → dashboard is fast.
+    // Gain/loss streams in via Suspense (can be slow / timeout).
+    const [overviewRes, revenueRes, customersRes] = await Promise.all([
+      apiGetServer<AnalyticsOverview>("/analytics/overview"),
+      apiGetServer<RevenueSummary>("/analytics/revenue"),
+      apiGetServer<Customer[]>("/customers", { page: 1, pageSize: 1 }),
+    ]);
     overview = overviewRes.data;
     revenue = revenueRes.data;
     totalCustomers = customersRes.meta?.total ?? 0;
-    gainLoss = gainLossRes?.data ?? null;
   } catch (error) {
     loadError =
       error instanceof ApiClientError
@@ -97,17 +134,13 @@ export default async function DashboardPage({
         description="Subscription analytics overview for your Vimeo OTT audience."
         breadcrumbs={[{ label: "Dashboard" }]}
       />
-      {gainLoss ? (
-        <GainLossMetrics data={gainLoss} preset={gainLoss.preset || preset} />
-      ) : (
-        <RefreshErrorCard
-          title="Unable to load gain / loss metrics"
-          message={
-            gainLossError ??
-            "Gain/loss metrics are temporarily unavailable."
-          }
+      <Suspense fallback={<GainLossFallback />}>
+        <DashboardGainLoss
+          preset={preset}
+          startDate={startDate}
+          endDate={endDate}
         />
-      )}
+      </Suspense>
       <DashboardMetrics
         totalCustomers={totalCustomers}
         activeSubscribers={overview.activeSubscribers}
