@@ -160,30 +160,61 @@ export default async function DashboardPage({
     );
   }
 
-  const [daily, countries, platforms, products] = await Promise.all([
-    safeGet<DailyAnalyticsResponse>("/analytics/daily"),
-    safeGet<CountryAnalyticsResponse>("/analytics/countries"),
-    safeGet<PlatformAnalyticsResponse>("/analytics/platforms"),
-    safeGet<ProductAnalyticsResponse>("/analytics/products"),
-  ]);
+  const [daily, countries, platforms, products, gainLossLast30] =
+    await Promise.all([
+      safeGet<DailyAnalyticsResponse>("/analytics/daily"),
+      safeGet<CountryAnalyticsResponse>("/analytics/countries"),
+      safeGet<PlatformAnalyticsResponse>("/analytics/platforms"),
+      safeGet<ProductAnalyticsResponse>("/analytics/products"),
+      // Fallback when mv_daily_metrics / daily_* snapshots are empty.
+      safeGet<SubscriptionMetricsResponse>("/analytics/subscription-metrics", {
+        preset: "last30",
+      }),
+    ]);
 
-  const customerGrowth =
+  const dailyCustomerGrowth =
     daily?.customers.map((r) => ({
       name: shortDate(r.date),
       value: r.newCustomers,
     })) ?? [];
 
-  const revenueTrend =
+  const dailyRevenueTrend =
     daily?.payments.map((r) => ({
       name: shortDate(r.date),
       value: Number((r.revenueCents / 100).toFixed(2)),
     })) ?? [];
 
-  const subscriptionGrowth =
+  const dailySubscriptionGrowth =
     daily?.subscriptions.map((r) => ({
       name: shortDate(r.date),
       value: r.netGrowth,
     })) ?? [];
+
+  const gainLossSeries = [...(gainLossLast30?.series ?? [])].sort((a, b) =>
+    (a.reportDate ?? a.key).localeCompare(b.reportDate ?? b.key),
+  );
+
+  const fallbackCustomerGrowth = gainLossSeries.map((r) => ({
+    name: shortDate(r.reportDate ?? r.key),
+    value: r.uniqueCustomersGain,
+  }));
+
+  const fallbackSubscriptionGrowth = gainLossSeries.map((r) => ({
+    name: shortDate(r.reportDate ?? r.key),
+    value: r.subscriptionGain - r.subscriptionLoss,
+  }));
+
+  const usingDailyCustomer = dailyCustomerGrowth.length > 0;
+  const usingDailyRevenue = dailyRevenueTrend.length > 0;
+  const usingDailySubs = dailySubscriptionGrowth.length > 0;
+
+  const customerGrowth = usingDailyCustomer
+    ? dailyCustomerGrowth
+    : fallbackCustomerGrowth;
+  const revenueTrend = dailyRevenueTrend;
+  const subscriptionGrowth = usingDailySubs
+    ? dailySubscriptionGrowth
+    : fallbackSubscriptionGrowth;
 
   const platformPoints =
     platforms?.platforms.slice(0, 8).map((p) => ({
@@ -203,12 +234,12 @@ export default async function DashboardPage({
       value: p.openSubscribers || p.subscribers,
     })) ?? [];
 
-  const chartSource =
+  const dailySourceNote =
     daily?.source === "mv_daily_metrics"
-      ? "Last 30 UTC days from analytics.mv_daily_metrics"
+      ? "analytics.mv_daily_metrics"
       : daily
-        ? "Last 30 UTC days from daily snapshots"
-        : "Series unavailable — refresh analytics MVs";
+        ? "daily snapshots"
+        : null;
 
   return (
     <div className="space-y-6">
@@ -245,9 +276,19 @@ export default async function DashboardPage({
         countries={countryPoints}
         topProducts={productPoints}
         notes={{
-          customers: `${chartSource}. Values = new customers / day.`,
-          revenue: `${chartSource}. Values = successful payment revenue ($).`,
-          subscriptions: `${chartSource}. Values = net subscription growth / day.`,
+          customers: usingDailyCustomer
+            ? `Last 30 UTC days from ${dailySourceNote}. Values = new customers / day.`
+            : customerGrowth.length > 0
+              ? "Fallback: last 30 UTC days from subscription_events (unique customers gain / day). Fill analytics.mv_daily_metrics for true new-customer series."
+              : "No series yet. Run in Supabase: select analytics.refresh_daily_metrics();",
+          revenue: usingDailyRevenue
+            ? `Last 30 UTC days from ${dailySourceNote}. Values = successful payment revenue ($).`
+            : "No revenue series yet — analytics.mv_daily_metrics is empty. Run: select analytics.refresh_daily_metrics();",
+          subscriptions: usingDailySubs
+            ? `Last 30 UTC days from ${dailySourceNote}. Values = net subscription growth / day.`
+            : subscriptionGrowth.length > 0
+              ? "Fallback: last 30 UTC days from subscription_events (subscription gain − loss / day)."
+              : "No series yet. Run in Supabase: select analytics.refresh_daily_metrics();",
           platforms:
             platforms?.note ?? "Open subscribers by platform (top 8).",
           countries: countries?.note ?? "Open subscribers by country (top 8).",
