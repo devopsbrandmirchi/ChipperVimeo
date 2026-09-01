@@ -9,6 +9,7 @@ import type {
 } from "@/types/database";
 import type {
   CustomerSearchOptions,
+  CustomerListFilterOptions,
   PaginateOptions,
   PaginatedResult,
 } from "@/types/repository";
@@ -16,6 +17,11 @@ import type {
 const TABLE = "customers";
 
 const ACTIVE_STATUSES = ["active", "enabled", "subscribed"];
+
+/** Strip PostgREST filter metacharacters from user input. */
+function sanitizeFilterTerm(value: string): string {
+  return value.replace(/[%_,.()]/g, " ").replace(/\s+/g, " ").trim();
+}
 
 export class CustomerRepository extends BaseRepository<
   Customer,
@@ -109,22 +115,41 @@ export class CustomerRepository extends BaseRepository<
     const limit = Math.min(options.limit ?? 50, 200);
     let query = this.db().from(TABLE).select("*");
 
-    if (options.email) {
-      query = query.ilike("email", `%${options.email}%`);
-    }
-    if (options.name) {
+    const email = options.email ? sanitizeFilterTerm(options.email) : "";
+    const name = options.name ? sanitizeFilterTerm(options.name) : "";
+
+    // UI search passes the same term for email + name — OR them, don't AND.
+    if (email && name && email === name) {
       query = query.or(
-        `full_name.ilike.%${options.name}%,first_name.ilike.%${options.name}%,last_name.ilike.%${options.name}%`,
+        `email.ilike.%${email}%,full_name.ilike.%${email}%,first_name.ilike.%${email}%,last_name.ilike.%${email}%`,
       );
+    } else {
+      if (email) {
+        query = query.ilike("email", `%${email}%`);
+      }
+      if (name) {
+        query = query.or(
+          `full_name.ilike.%${name}%,first_name.ilike.%${name}%,last_name.ilike.%${name}%`,
+        );
+      }
     }
     if (options.country) {
-      query = query.eq("country", options.country);
+      query = query.ilike("country", `%${sanitizeFilterTerm(options.country)}%`);
     }
     if (options.platform) {
-      query = query.eq("platform", options.platform);
+      query = query.ilike(
+        "platform",
+        `%${sanitizeFilterTerm(options.platform)}%`,
+      );
+    }
+    if (options.plan) {
+      query = query.ilike("plan", `%${sanitizeFilterTerm(options.plan)}%`);
     }
     if (options.status) {
-      query = query.eq("subscription_status", options.status);
+      query = query.ilike(
+        "subscription_status",
+        `%${sanitizeFilterTerm(options.status)}%`,
+      );
     }
 
     const { data, error } = await query
@@ -133,6 +158,60 @@ export class CustomerRepository extends BaseRepository<
 
     if (error) this.throwMapped(error, "search");
     return (data ?? []) as Customer[];
+  }
+
+  /**
+   * Server-side filtered pagination for /customers (ilike + OR search).
+   */
+  async paginateFiltered(
+    opts: CustomerListFilterOptions = {},
+  ): Promise<PaginatedResult<Customer>> {
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = Math.min(Math.max(1, opts.pageSize ?? 25), 200);
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const sortBy = opts.sortBy ?? "created_at";
+    const ascending = (opts.sortDirection ?? "desc") === "asc";
+
+    let query = this.db()
+      .from(TABLE)
+      .select("*", { count: "exact" });
+
+    const search = opts.search ? sanitizeFilterTerm(opts.search) : "";
+    if (search) {
+      query = query.or(
+        `email.ilike.%${search}%,full_name.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`,
+      );
+    }
+    if (opts.country) {
+      query = query.ilike("country", `%${sanitizeFilterTerm(opts.country)}%`);
+    }
+    if (opts.platform) {
+      query = query.ilike("platform", `%${sanitizeFilterTerm(opts.platform)}%`);
+    }
+    if (opts.plan) {
+      query = query.ilike("plan", `%${sanitizeFilterTerm(opts.plan)}%`);
+    }
+    if (opts.status) {
+      query = query.ilike(
+        "subscription_status",
+        `%${sanitizeFilterTerm(opts.status)}%`,
+      );
+    }
+
+    const { data, error, count } = await query
+      .order(sortBy, { ascending, nullsFirst: false })
+      .range(from, to);
+
+    if (error) this.throwMapped(error, "paginateFiltered");
+    const total = count ?? 0;
+    return {
+      items: (data ?? []) as Customer[],
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
   }
 
   override async paginate(

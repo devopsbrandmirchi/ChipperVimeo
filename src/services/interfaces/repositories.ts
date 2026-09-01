@@ -17,6 +17,7 @@ import type {
 } from "@/types/database";
 import type {
   CustomerSearchOptions,
+  CustomerListFilterOptions,
   DateRangeOptions,
   PaginateOptions,
   PaginatedResult,
@@ -42,6 +43,9 @@ export interface ICustomerRepository {
   ): Promise<number>;
   search(options: CustomerSearchOptions): Promise<Customer[]>;
   paginate(opts?: PaginateOptions): Promise<PaginatedResult<Customer>>;
+  paginateFiltered(
+    opts?: CustomerListFilterOptions,
+  ): Promise<PaginatedResult<Customer>>;
   findAll(options?: {
     limit?: number;
     sortBy?: string;

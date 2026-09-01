@@ -23,9 +23,18 @@ export type CustomerSearchOptions = {
   name?: string;
   country?: string;
   platform?: string;
+  plan?: string;
   status?: string;
   limit?: number;
 };
+
+export type CustomerListFilterOptions = {
+  search?: string;
+  country?: string;
+  platform?: string;
+  plan?: string;
+  status?: string;
+} & PaginateOptions;
 
 export type ProductSearchOptions = {
   sku?: string;

@@ -168,35 +168,41 @@ export function CustomerFilters({
   return (
     <form
       onSubmit={apply}
-      className="grid gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 md:grid-cols-6"
+      className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
     >
-      <Input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search name or email"
-        className="md:col-span-2"
-      />
-      <Input
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        placeholder="Subscription status"
-      />
-      <Input
-        value={country}
-        onChange={(e) => setCountry(e.target.value)}
-        placeholder="Country"
-      />
-      <Input
-        value={platform}
-        onChange={(e) => setPlatform(e.target.value)}
-        placeholder="Platform"
-      />
-      <Input
-        value={plan}
-        onChange={(e) => setPlan(e.target.value)}
-        placeholder="Plan"
-      />
-      <div className="flex gap-2 md:col-span-6">
+      <div className="grid gap-3 md:grid-cols-6">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name or email"
+          className="md:col-span-2"
+        />
+        <Input
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          placeholder="Status e.g. Enabled"
+        />
+        <Input
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          placeholder="Country e.g. France"
+        />
+        <Input
+          value={platform}
+          onChange={(e) => setPlatform(e.target.value)}
+          placeholder="Platform e.g. Web"
+        />
+        <Input
+          value={plan}
+          onChange={(e) => setPlan(e.target.value)}
+          placeholder="Plan e.g. standard"
+        />
+      </div>
+      <p className="text-xs text-[var(--muted-foreground)]">
+        Filters are case-insensitive and match partial text. Examples:{" "}
+        <code>Enabled</code>, <code>Free_trial</code>, <code>Android_tv</code>.
+      </p>
+      <div className="flex gap-2">
         <Button type="submit" size="sm">
           Apply filters
         </Button>

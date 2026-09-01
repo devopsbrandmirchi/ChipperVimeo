@@ -165,31 +165,22 @@ export class CustomerService extends BaseService implements ICustomerService {
   ): Promise<PaginatedResult<Customer>> {
     return this.timed("list", async () => {
       try {
-        const needsSearch =
-          Boolean(filters.search) ||
-          Boolean(filters.signupFrom) ||
-          Boolean(filters.signupTo) ||
-          Boolean(filters.productId);
-
-        if (needsSearch) {
+        // Signup/product filters still use the limited in-memory path.
+        if (filters.signupFrom || filters.signupTo || filters.productId) {
           return this.search(filters, page);
         }
 
         const status =
           filters.subscriptionStatus ?? filters.status ?? undefined;
-        const eqFilters: Record<
-          string,
-          string | number | boolean | null | undefined
-        > = {
+        const pageOpts = toPaginateOptions(page, "created_at");
+
+        return await this.customers.paginateFiltered({
+          search: filters.search,
           country: filters.country,
           platform: filters.platform,
           plan: filters.plan,
-          subscription_status: status,
-        };
-
-        return await this.customers.paginate({
-          ...toPaginateOptions(page, "created_at"),
-          filters: eqFilters,
+          status,
+          ...pageOpts,
         });
       } catch (error) {
         this.mapRepositoryError(error, "list");
