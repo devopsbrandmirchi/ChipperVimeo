@@ -2,22 +2,35 @@ import type { Logger } from "@/processors/logger/logger";
 import { asJson } from "@/processors/helpers/payload";
 import { BaseService } from "@/services/shared/base.service";
 import { DuplicateEntityError } from "@/services/shared/errors";
+import { ServiceValidationError } from "@/services/shared/errors";
 import type { ICustomerService } from "@/services/interfaces/customer-service.interface";
 import type {
   IPaymentService,
   RecordPaymentInput,
 } from "@/services/interfaces/payment-service.interface";
-import type { IPaymentRepository } from "@/services/interfaces/repositories";
+import type {
+  ICustomerRepository,
+  IPaymentRepository,
+  IProductRepository,
+} from "@/services/interfaces/repositories";
 import type { Payment } from "@/types/database";
 import { RepositoryError } from "@/types/errors";
-import type { PaymentListFilters, ResourceStatistics } from "@/types/common";
+import type {
+  PaymentListFilters,
+  PaymentListItem,
+  ResourceStatistics,
+} from "@/types/common";
 import type { ApiPageRequest, PaginatedResult } from "@/types/pagination";
 import { toPaginateOptions } from "@/types/pagination";
+
+const EXPORT_MAX_ROWS = 10_000;
 
 export class PaymentService extends BaseService implements IPaymentService {
   constructor(
     private readonly payments: IPaymentRepository,
     private readonly customers: ICustomerService,
+    private readonly customerRepo: ICustomerRepository,
+    private readonly productRepo: IProductRepository,
     logger: Logger,
   ) {
     super("PaymentService", logger);
@@ -103,11 +116,13 @@ export class PaymentService extends BaseService implements IPaymentService {
     return this.create({ ...input, status: "succeeded" });
   }
 
-  async getById(id: string): Promise<Payment> {
+  async getById(id: string): Promise<PaymentListItem> {
     return this.timed("getById", async () => {
       try {
         const row = await this.payments.findById(id);
-        return this.requireFound(row, "payment", id);
+        const payment = this.requireFound(row, "payment", id);
+        const [enriched] = await this.enrich([payment]);
+        return enriched;
       } catch (error) {
         this.mapRepositoryError(error, "getById");
       }
@@ -117,81 +132,58 @@ export class PaymentService extends BaseService implements IPaymentService {
   async list(
     filters: PaymentListFilters = {},
     page: ApiPageRequest = {},
-  ): Promise<PaginatedResult<Payment>> {
+  ): Promise<PaginatedResult<PaymentListItem>> {
     return this.timed("list", async () => {
       try {
-        const needsCompose =
-          Boolean(filters.from) ||
-          Boolean(filters.to) ||
-          Boolean(filters.currency) ||
-          (Boolean(filters.status) &&
-            (Boolean(filters.customerId) || Boolean(filters.subscriptionId)));
-
-        if (needsCompose) {
-          let candidates: Payment[];
-          if (filters.from && filters.to) {
-            candidates = await this.payments.findBetweenDates({
-              from: filters.from,
-              to: filters.to,
-              limit: 200,
-            });
-          } else if (filters.customerId) {
-            candidates = await this.payments.findByCustomer(filters.customerId);
-          } else if (filters.subscriptionId) {
-            candidates = await this.payments.findBySubscription(
-              filters.subscriptionId,
-            );
-          } else if (filters.status === "failed") {
-            candidates = await this.payments.findFailed(200);
-          } else if (
-            filters.status === "succeeded" ||
-            filters.status === "paid"
-          ) {
-            candidates = await this.payments.findSuccessful(200);
-          } else {
-            const result = await this.payments.paginate({
-              ...toPaginateOptions(page, "payment_date"),
-              filters: {
-                status: filters.status,
-                customer_id: filters.customerId,
-                subscription_id: filters.subscriptionId,
-                currency: filters.currency,
-              },
-            });
-            return result;
-          }
-
-          let filtered = candidates;
-          if (filters.status) {
-            filtered = filtered.filter((p) => p.status === filters.status);
-          }
-          if (filters.customerId) {
-            filtered = filtered.filter(
-              (p) => p.customer_id === filters.customerId,
-            );
-          }
-          if (filters.subscriptionId) {
-            filtered = filtered.filter(
-              (p) => p.subscription_id === filters.subscriptionId,
-            );
-          }
-          if (filters.currency) {
-            filtered = filtered.filter((p) => p.currency === filters.currency);
-          }
-          return this.paginateCandidates(filtered, page);
-        }
-
-        return await this.payments.paginate({
-          ...toPaginateOptions(page, "payment_date"),
-          filters: {
-            status: filters.status,
-            customer_id: filters.customerId,
-            subscription_id: filters.subscriptionId,
-            currency: filters.currency,
-          },
+        const opts = toPaginateOptions(page, "payment_date");
+        const result = await this.payments.paginateFiltered({
+          status: filters.status,
+          customerId: filters.customerId,
+          subscriptionId: filters.subscriptionId,
+          productId: filters.productId,
+          currency: filters.currency,
+          from: filters.from,
+          to: filters.to,
+          page: opts.page,
+          pageSize: opts.pageSize,
+          sortBy: opts.sortBy,
+          sortDirection: opts.sortDirection,
         });
+        const items = await this.enrich(result.items);
+        return { ...result, items };
       } catch (error) {
         this.mapRepositoryError(error, "list");
+      }
+    });
+  }
+
+  async listForExport(
+    filters: PaymentListFilters = {},
+  ): Promise<{ items: PaymentListItem[]; total: number }> {
+    return this.timed("listForExport", async () => {
+      try {
+        const result = await this.payments.paginateFiltered({
+          status: filters.status,
+          customerId: filters.customerId,
+          subscriptionId: filters.subscriptionId,
+          productId: filters.productId,
+          currency: filters.currency,
+          from: filters.from,
+          to: filters.to,
+          page: 1,
+          pageSize: EXPORT_MAX_ROWS,
+          sortBy: "payment_date",
+          sortDirection: "desc",
+        });
+        if (result.total > EXPORT_MAX_ROWS) {
+          throw new ServiceValidationError(
+            `Export exceeds ${EXPORT_MAX_ROWS} rows (${result.total}). Narrow filters.`,
+          );
+        }
+        const items = await this.enrich(result.items);
+        return { items, total: result.total };
+      } catch (error) {
+        this.mapRepositoryError(error, "listForExport");
       }
     });
   }
@@ -200,7 +192,7 @@ export class PaymentService extends BaseService implements IPaymentService {
     from: string,
     to: string,
     page: ApiPageRequest = {},
-  ): Promise<PaginatedResult<Payment>> {
+  ): Promise<PaginatedResult<PaymentListItem>> {
     return this.list({ from, to }, page);
   }
 
@@ -217,6 +209,35 @@ export class PaymentService extends BaseService implements IPaymentService {
       } catch (error) {
         this.mapRepositoryError(error, "getStatistics");
       }
+    });
+  }
+
+  private async enrich(rows: Payment[]): Promise<PaymentListItem[]> {
+    if (rows.length === 0) return [];
+    const customerIds = rows.map((r) => r.customer_id).filter(Boolean);
+    const productIds = rows
+      .map((r) => r.product_id)
+      .filter((id): id is string => Boolean(id));
+
+    const [customers, products] = await Promise.all([
+      this.customerRepo.findByIds(customerIds),
+      this.productRepo.findByIds(productIds),
+    ]);
+
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    return rows.map((row) => {
+      const customer = customerMap.get(row.customer_id);
+      const product = row.product_id
+        ? productMap.get(row.product_id)
+        : undefined;
+      return {
+        ...row,
+        customer_email: customer?.email ?? null,
+        customer_name: customer?.full_name ?? null,
+        product_name: product?.name ?? product?.sku ?? null,
+      };
     });
   }
 }

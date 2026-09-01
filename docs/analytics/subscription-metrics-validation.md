@@ -14,7 +14,7 @@ API: `GET /api/v1/analytics/subscription-metrics?preset=last7|today|yesterday|la
 | Metric | Business definition | Event types | SQL / view logic | Known Vimeo differences | Expected Vimeo result |
 |--------|---------------------|-------------|------------------|-------------------------|------------------------|
 | **Subscription Gain** | Paying starts only | `created` (paid path) + `trial_converted` | `COUNT` where those types; trial journeys do **not** also emit paid `created` | Vimeo “Gain” may use site TZ and a limited history window; our grain is UTC | Match Vimeo Gain within TZ/history gaps |
-| **Subscription Loss** | Lost paid entitlement | **Web:** `set_cancellation` only. **Store:** `cancelled` \| `expired` \| `disabled` | Platform via `normalize_report_platform` + `is_store_platform` | Web may show cancel on schedule date vs set_cancellation event day | Match after platform rule applied |
+| **Subscription Loss** | Lost paid entitlement | **Web:** `set_cancellation` \| `expired` \| (`charge_failed` when status=`expired`). **Store:** `cancelled` \| `expired` \| `disabled` | Platform via `normalize_report_platform` + Web/store rules (migration 027) | Web may show cancel on schedule/access-end date vs event day | Match after platform rule applied |
 | **Trial Gain** | Free trial started | `trial_started` only | Count `trial_started` | `created` with trial payload is routed to `trial_started` at ingest | Match Vimeo trial starts |
 | **Trial Conversion** | Trial → paid | `trial_converted` only | Count `trial_converted` | Also counted in Subscription Gain (intentional) | Match Vimeo conversions |
 | **Trial Loss** | Trial ended w/o convert | `trial_expired` | Count `trial_expired` | Requires `free_trial_expired` handler (Phase A) | Match expired trials |
@@ -130,5 +130,13 @@ from analytics.fn_subscription_metrics(
   null, null, null
 );
 ```
+
+## Phase 10.5 runbook
+
+For end-to-end Vimeo comparison (gain/loss + stock/MRR), worksheets, and pass/fail thresholds see:
+
+- [`phase-10.5-vimeo-validation-runbook.md`](phase-10.5-vimeo-validation-runbook.md)
+- [`known-validation-gaps.md`](known-validation-gaps.md)
+- Scripts: `supabase/scripts/phase_10_5_validate_gain_loss.sql`, `phase_10_5_validate_stock_mrr.sql`
 
 Related: [`business-metrics.md`](business-metrics.md), [`event-mapping.md`](event-mapping.md).

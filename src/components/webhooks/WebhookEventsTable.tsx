@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Loader2 } from "lucide-react";
 
+import { FilterPendingBanner } from "@/components/common/FilterPendingBanner";
 import { StatusChip } from "@/components/common/feedback";
 import { DataTable } from "@/components/tables/DataTable";
 import { PaginationLinks } from "@/components/tables/Pagination";
@@ -157,6 +159,7 @@ export function WebhookEventFilters({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
   const [topic, setTopic] = useState(initial.topic ?? "");
   const [email, setEmail] = useState(initial.email ?? "");
   const [customerId, setCustomerId] = useState(initial.customerId ?? "");
@@ -176,53 +179,72 @@ export function WebhookEventFilters({
     setOrDelete("from", from);
     setOrDelete("to", to);
     params.set("page", "1");
-    router.push(`${pathname}?${params.toString()}`);
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    });
   }
 
   return (
     <form
       onSubmit={apply}
-      className="grid gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 md:grid-cols-5"
+      className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
+      aria-busy={isPending}
     >
-      <Input
-        value={topic}
-        onChange={(e) => setTopic(e.target.value)}
-        placeholder="Topic"
-      />
-      <Input
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Customer email"
-      />
-      <Input
-        value={customerId}
-        onChange={(e) => setCustomerId(e.target.value)}
-        placeholder="Vimeo customer id"
-      />
-      <Input
-        type="date"
-        value={from}
-        onChange={(e) => setFrom(e.target.value)}
-        aria-label="From date"
-      />
-      <Input
-        type="date"
-        value={to}
-        onChange={(e) => setTo(e.target.value)}
-        aria-label="To date"
-      />
-      <div className="flex gap-2 md:col-span-5">
-        <Button type="submit" size="sm">
-          Apply filters
+      <div className="grid gap-3 md:grid-cols-5">
+        <Input
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          placeholder="Topic"
+          disabled={isPending}
+        />
+        <Input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Customer email"
+          disabled={isPending}
+        />
+        <Input
+          value={customerId}
+          onChange={(e) => setCustomerId(e.target.value)}
+          placeholder="Vimeo customer id"
+          disabled={isPending}
+        />
+        <Input
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          aria-label="From date"
+          disabled={isPending}
+        />
+        <Input
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          aria-label="To date"
+          disabled={isPending}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" size="sm" disabled={isPending}>
+          {isPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : null}
+          {isPending ? "Loading…" : "Apply filters"}
         </Button>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => router.push(pathname)}
+          disabled={isPending}
+          onClick={() =>
+            startTransition(() => {
+              router.push(pathname);
+            })
+          }
         >
           Reset
         </Button>
+        <FilterPendingBanner pending={isPending} />
       </div>
     </form>
   );

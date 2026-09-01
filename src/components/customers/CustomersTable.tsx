@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, useTransition, type FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Loader2 } from "lucide-react";
 
+import { FilterPendingBanner } from "@/components/common/FilterPendingBanner";
 import {
   CountryBadge,
   PlatformBadge,
@@ -136,6 +138,7 @@ export function CustomerFilters({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState(initial.search ?? "");
   const [status, setStatus] = useState(
     initial.subscriptionStatus ?? initial.status ?? "",
@@ -158,17 +161,22 @@ export function CustomerFilters({
     setOrDelete("plan", plan);
     params.delete("status");
     params.set("page", "1");
-    router.push(`${pathname}?${params.toString()}`);
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    });
   }
 
   function reset() {
-    router.push(pathname);
+    startTransition(() => {
+      router.push(pathname);
+    });
   }
 
   return (
     <form
       onSubmit={apply}
       className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4"
+      aria-busy={isPending}
     >
       <div className="grid gap-3 md:grid-cols-6">
         <Input
@@ -176,39 +184,54 @@ export function CustomerFilters({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name or email"
           className="md:col-span-2"
+          disabled={isPending}
         />
         <Input
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           placeholder="Status e.g. Enabled"
+          disabled={isPending}
         />
         <Input
           value={country}
           onChange={(e) => setCountry(e.target.value)}
           placeholder="Country e.g. France"
+          disabled={isPending}
         />
         <Input
           value={platform}
           onChange={(e) => setPlatform(e.target.value)}
           placeholder="Platform e.g. Web"
+          disabled={isPending}
         />
         <Input
           value={plan}
           onChange={(e) => setPlan(e.target.value)}
           placeholder="Plan e.g. standard"
+          disabled={isPending}
         />
       </div>
       <p className="text-xs text-[var(--muted-foreground)]">
         Filters are case-insensitive and match partial text. Examples:{" "}
         <code>Enabled</code>, <code>Free_trial</code>, <code>Android_tv</code>.
       </p>
-      <div className="flex gap-2">
-        <Button type="submit" size="sm">
-          Apply filters
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" size="sm" disabled={isPending}>
+          {isPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : null}
+          {isPending ? "Loading…" : "Apply filters"}
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={reset}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={reset}
+          disabled={isPending}
+        >
           Reset
         </Button>
+        <FilterPendingBanner pending={isPending} />
       </div>
     </form>
   );

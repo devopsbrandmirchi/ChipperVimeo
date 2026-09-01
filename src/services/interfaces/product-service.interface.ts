@@ -33,6 +33,9 @@ export interface IProductService {
     filters?: ProductListFilters,
     page?: ApiPageRequest,
   ): Promise<PaginatedResult<Product>>;
+  listForExport(
+    filters?: ProductListFilters,
+  ): Promise<{ items: Product[]; total: number }>;
   search(
     filters: ProductListFilters,
     page?: ApiPageRequest,

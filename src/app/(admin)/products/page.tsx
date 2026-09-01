@@ -1,69 +1,126 @@
-import { ErrorCard, ModulePlaceholder, StatusChip } from "@/components/common/feedback";
+import { Suspense } from "react";
+
+import { ErrorCard, LoadingTable } from "@/components/common/feedback";
+import {
+  ProductFilters,
+  ProductsTable,
+} from "@/components/products/ProductsTable";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
 import type { Product } from "@/types/database";
 
-export default async function ProductsPage() {
-  let preview: Product[] = [];
-  let total = 0;
-  let errorMessage: string | null = null;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function first(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+async function loadProducts(searchParams: SearchParams) {
+  const sp = await searchParams;
+  const page = first(sp.page) ?? "1";
+  const pageSize = first(sp.pageSize) ?? "25";
+  const search = first(sp.search);
+  const active = first(sp.active);
+  const sku = first(sp.sku);
+  const sort = first(sp.sort);
+  const direction = first(sp.direction);
+
+  const result = await apiGetServer<Product[]>("/products", {
+    page,
+    pageSize,
+    search,
+    active,
+    sku,
+    sort,
+    direction,
+  });
+
+  return {
+    data: result.data,
+    page: result.meta?.page ?? Number(page),
+    totalPages: result.meta?.totalPages ?? 1,
+    total: result.meta?.total ?? result.data.length,
+    query: {
+      search,
+      active,
+      sku,
+      sort,
+      direction,
+      pageSize,
+    },
+  };
+}
+
+async function ProductsResults({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  let payload: Awaited<ReturnType<typeof loadProducts>> | null = null;
+  let loadError: string | null = null;
 
   try {
-    const result = await apiGetServer<Product[]>("/products", {
-      page: 1,
-      pageSize: 8,
-    });
-    preview = result.data;
-    total = result.meta?.total ?? result.data.length;
+    payload = await loadProducts(searchParams);
   } catch (error) {
-    errorMessage =
+    loadError =
       error instanceof ApiClientError
         ? error.message
         : error instanceof Error
           ? error.message
-          : "Failed to load";
+          : "Failed to load products";
   }
+
+  if (!payload) {
+    return (
+      <ErrorCard
+        title="Unable to load products"
+        message={loadError ?? "Request failed"}
+      />
+    );
+  }
+
+  return (
+    <ProductsTable
+      data={payload.data}
+      page={payload.page}
+      totalPages={payload.totalPages}
+      total={payload.total}
+      query={payload.query}
+    />
+  );
+}
+
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const sp = await searchParams;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Products"
-        description="Product catalog layout — full editor arrives later."
+        description="Browse the Vimeo-synced product catalog."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Products" },
         ]}
       />
-      <ModulePlaceholder
-        title="Layout ready"
-        description={`Connected to GET /api/v1/products (${total} total).`}
-      >
-        {errorMessage ? (
-          <ErrorCard title="Preview unavailable" message={errorMessage} />
-        ) : preview.length === 0 ? (
-          <p className="text-sm text-[var(--muted-foreground)]">No products yet.</p>
-        ) : (
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {preview.map((p) => (
-              <li
-                key={p.id}
-                className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{p.name ?? p.sku ?? p.id}</span>
-                  <StatusChip status={p.active ? "active" : "inactive"} />
-                </div>
-                {p.sku ? (
-                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                    SKU {p.sku}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </ModulePlaceholder>
+      <Suspense fallback={null}>
+        <ProductFilters
+          initial={{
+            search: first(sp.search),
+            active: first(sp.active),
+            sku: first(sp.sku),
+          }}
+        />
+      </Suspense>
+      <Suspense fallback={<LoadingTable />}>
+        <ProductsResults searchParams={searchParams} />
+      </Suspense>
     </div>
   );
 }

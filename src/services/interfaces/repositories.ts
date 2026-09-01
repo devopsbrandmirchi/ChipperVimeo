@@ -21,6 +21,7 @@ import type {
   DateRangeOptions,
   PaginateOptions,
   PaginatedResult,
+  PaymentListFilterOptions,
   ProductSearchOptions,
   SubscriptionListFilterOptions,
   SubscriptionSearchOptions,
@@ -32,6 +33,7 @@ import type { VottEvent, VottEventFilters } from "@/types/vimeo";
 export interface ICustomerRepository {
   findByVimeoCustomerId(vimeoCustomerId: number): Promise<Customer | null>;
   findById(id: string): Promise<Customer | null>;
+  findByIds(ids: string[]): Promise<Customer[]>;
   upsertByVimeoId(row: CustomerInsert): Promise<Customer>;
   update(id: string, patch: CustomerUpdate): Promise<Customer>;
   updateSubscription(
@@ -58,6 +60,7 @@ export interface ICustomerRepository {
 export interface IProductRepository {
   findByVimeoProductId(vimeoProductId: number): Promise<Product | null>;
   findById(id: string): Promise<Product | null>;
+  findByIds(ids: string[]): Promise<Product[]>;
   upsertByVimeoId(row: ProductInsert): Promise<Product>;
   update(id: string, patch: ProductUpdate): Promise<Product>;
   count(
@@ -107,6 +110,9 @@ export interface IPaymentRepository {
     filters?: Record<string, string | number | boolean | null | undefined>,
   ): Promise<number>;
   paginate(opts?: PaginateOptions): Promise<PaginatedResult<Payment>>;
+  paginateFiltered(
+    opts?: PaymentListFilterOptions,
+  ): Promise<PaginatedResult<Payment>>;
   findByCustomer(customerId: string): Promise<Payment[]>;
   findBySubscription(subscriptionId: string): Promise<Payment[]>;
   findBetweenDates(options: DateRangeOptions): Promise<Payment[]>;

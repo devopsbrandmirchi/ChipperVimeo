@@ -69,7 +69,13 @@ export function createApiServices(logger: Logger = defaultLogger): ApiServices {
     timeline,
     logger,
   );
-  const payments = new PaymentService(paymentRepo, customers, logger);
+  const payments = new PaymentService(
+    paymentRepo,
+    customers,
+    customerRepo,
+    productRepo,
+    logger,
+  );
   const webhookEvents = new WebhookEventService(vottEventRepo, logger);
   const analytics = new AnalyticsService(
     analyticsRepo,

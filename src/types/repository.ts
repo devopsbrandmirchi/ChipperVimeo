@@ -60,6 +60,16 @@ export type SubscriptionListFilterOptions = {
   renewalTo?: string;
 } & PaginateOptions;
 
+export type PaymentListFilterOptions = {
+  status?: string;
+  customerId?: string;
+  subscriptionId?: string;
+  productId?: string;
+  currency?: string;
+  from?: string;
+  to?: string;
+} & PaginateOptions;
+
 export type DateRangeOptions = {
   from: string;
   to: string;

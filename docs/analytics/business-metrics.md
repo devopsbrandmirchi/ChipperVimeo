@@ -67,4 +67,6 @@ where (event_created_at at time zone 'utc')::date = '2026-07-24'
 
 - Prefer the query above for validation. A `vott_events` topic count is a useful **ingest coverage** check only — reporting must not read `vott_events`. If `vott` ≫ `subscription_events` for that day, some webhooks were never normalized (processor/handler gap or failed processing).
 
+Phase 10.5 ops pack: [`phase-10.5-vimeo-validation-runbook.md`](phase-10.5-vimeo-validation-runbook.md), [`known-validation-gaps.md`](known-validation-gaps.md).
+
 Related: [`event-mapping.md`](event-mapping.md), [`../analytics-business-specification.md`](../analytics-business-specification.md).

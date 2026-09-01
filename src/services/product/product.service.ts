@@ -1,6 +1,7 @@
 import type { Logger } from "@/processors/logger/logger";
 import { asJson, stringOrNull } from "@/processors/helpers/payload";
 import { BaseService } from "@/services/shared/base.service";
+import { ServiceValidationError } from "@/services/shared/errors";
 import type { IProductService } from "@/services/interfaces/product-service.interface";
 import type { IProductRepository } from "@/services/interfaces/repositories";
 import type { Product, ProductUpdate } from "@/types/database";
@@ -8,6 +9,8 @@ import type { VimeoProduct } from "@/types/vimeo";
 import type { ProductListFilters, ResourceStatistics } from "@/types/common";
 import type { ApiPageRequest, PaginatedResult } from "@/types/pagination";
 import { toPaginateOptions } from "@/types/pagination";
+
+const EXPORT_MAX_ROWS = 10_000;
 
 export class ProductService extends BaseService implements IProductService {
   constructor(
@@ -133,6 +136,35 @@ export class ProductService extends BaseService implements IProductService {
         });
       } catch (error) {
         this.mapRepositoryError(error, "list");
+      }
+    });
+  }
+
+  async listForExport(
+    filters: ProductListFilters = {},
+  ): Promise<{ items: Product[]; total: number }> {
+    return this.timed("listForExport", async () => {
+      try {
+        const first = await this.list(filters, { page: 1, pageSize: 200 });
+        if (first.total > EXPORT_MAX_ROWS) {
+          throw new ServiceValidationError(
+            `Export exceeds ${EXPORT_MAX_ROWS} rows (${first.total}). Narrow filters.`,
+          );
+        }
+        if (first.total <= first.items.length) {
+          return { items: first.items, total: first.total };
+        }
+        const all: Product[] = [...first.items];
+        let page = 2;
+        while (all.length < first.total && all.length < EXPORT_MAX_ROWS) {
+          const next = await this.list(filters, { page, pageSize: 200 });
+          all.push(...next.items);
+          if (next.items.length === 0) break;
+          page += 1;
+        }
+        return { items: all, total: first.total };
+      } catch (error) {
+        this.mapRepositoryError(error, "listForExport");
       }
     });
   }

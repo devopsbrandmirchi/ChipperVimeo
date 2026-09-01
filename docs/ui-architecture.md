@@ -20,8 +20,10 @@ RootLayout (ThemeProvider + AuthProvider + Toaster)
 | `/customers` | Production list (filters, sort via URL, pagination) |
 | `/customers/[id]` | Detail: profile, subs, timeline, payments, webhooks |
 | `/webhook-events` | Production table + raw JSON dialog |
-| `/subscriptions`, `/products`, `/payments` | Layout + live API preview |
-| `/analytics` | Layout + placeholder charts from analytics APIs |
+| `/subscriptions` | Production list (filters, pagination) |
+| `/products`, `/products/[id]` | Production catalog list + read-only detail (CSV export) |
+| `/payments`, `/payments/[id]` | Production ledger list + detail (CSV export, enrichment) |
+| `/analytics` | Gain/loss + charts from analytics APIs |
 | `/settings` | Profile, theme, health, webhook note |
 
 Auth pages (`/login`, password flows, `/access-denied`) stay outside `(admin)`.

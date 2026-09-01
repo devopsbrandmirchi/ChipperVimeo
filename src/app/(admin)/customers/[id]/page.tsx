@@ -15,17 +15,17 @@ import { apiGetServer } from "@/lib/api/server";
 import { displayName, formatDate, formatDateTime } from "@/lib/utils";
 import type {
   Customer,
-  Payment,
   Product,
   Subscription,
   SubscriptionEvent,
 } from "@/types/database";
+import type { PaymentListItem } from "@/types/common";
 import type { VottEvent } from "@/types/vimeo";
 
 type DetailData = {
   customer: Customer;
   subs: Subscription[];
-  payments: Payment[];
+  payments: PaymentListItem[];
   timeline: SubscriptionEvent[];
   webhooks: VottEvent[];
   product: Product | null;
@@ -41,7 +41,7 @@ async function loadCustomerDetail(id: string): Promise<DetailData> {
       customerId: customer.id,
       pageSize: 50,
     }),
-    apiGetServer<Payment[]>("/payments", {
+    apiGetServer<PaymentListItem[]>("/payments", {
       customerId: customer.id,
       pageSize: 50,
     }),
@@ -199,7 +199,10 @@ export default async function CustomerDetailPage({
                   label="Product"
                   value={
                     product ? (
-                      <Link href="/products" className="font-medium hover:underline">
+                      <Link
+                        href={`/products/${product.id}`}
+                        className="font-medium hover:underline"
+                      >
                         {product.name ?? product.sku ?? product.id}
                       </Link>
                     ) : (
@@ -281,6 +284,7 @@ export default async function CustomerDetailPage({
                   <th className="pb-2 font-medium">Status</th>
                   <th className="pb-2 font-medium">Amount</th>
                   <th className="pb-2 font-medium">Currency</th>
+                  <th className="pb-2 font-medium" />
                 </tr>
               </thead>
               <tbody>
@@ -296,6 +300,14 @@ export default async function CustomerDetailPage({
                         : "—"}
                     </td>
                     <td className="py-2">{p.currency ?? "—"}</td>
+                    <td className="py-2 text-right">
+                      <Link
+                        href={`/payments/${p.id}`}
+                        className="text-sm font-medium hover:underline"
+                      >
+                        View
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>

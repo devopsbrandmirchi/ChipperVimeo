@@ -1,78 +1,142 @@
-import { ErrorCard, ModulePlaceholder, StatusChip } from "@/components/common/feedback";
+import { Suspense } from "react";
+
+import { ErrorCard, LoadingTable } from "@/components/common/feedback";
+import {
+  PaymentFilters,
+  PaymentsTable,
+} from "@/components/payments/PaymentsTable";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
-import { formatDate } from "@/lib/utils";
-import type { Payment } from "@/types/database";
+import type { PaymentListItem } from "@/types/common";
 
-export default async function PaymentsPage() {
-  let preview: Payment[] = [];
-  let total = 0;
-  let errorMessage: string | null = null;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function first(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+async function loadPayments(searchParams: SearchParams) {
+  const sp = await searchParams;
+  const page = first(sp.page) ?? "1";
+  const pageSize = first(sp.pageSize) ?? "25";
+  const status = first(sp.status);
+  const currency = first(sp.currency);
+  const from = first(sp.from);
+  const to = first(sp.to);
+  const customerId = first(sp.customerId);
+  const productId = first(sp.productId);
+  const subscriptionId = first(sp.subscriptionId);
+  const sort = first(sp.sort);
+  const direction = first(sp.direction);
+
+  const result = await apiGetServer<PaymentListItem[]>("/payments", {
+    page,
+    pageSize,
+    status,
+    currency,
+    from,
+    to,
+    customerId,
+    productId,
+    subscriptionId,
+    sort,
+    direction,
+  });
+
+  return {
+    data: result.data,
+    page: result.meta?.page ?? Number(page),
+    totalPages: result.meta?.totalPages ?? 1,
+    total: result.meta?.total ?? result.data.length,
+    query: {
+      status,
+      currency,
+      from,
+      to,
+      customerId,
+      productId,
+      subscriptionId,
+      sort,
+      direction,
+      pageSize,
+    },
+  };
+}
+
+async function PaymentsResults({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  let payload: Awaited<ReturnType<typeof loadPayments>> | null = null;
+  let loadError: string | null = null;
 
   try {
-    const result = await apiGetServer<Payment[]>("/payments", {
-      page: 1,
-      pageSize: 8,
-    });
-    preview = result.data;
-    total = result.meta?.total ?? result.data.length;
+    payload = await loadPayments(searchParams);
   } catch (error) {
-    errorMessage =
+    loadError =
       error instanceof ApiClientError
         ? error.message
         : error instanceof Error
           ? error.message
-          : "Failed to load";
+          : "Failed to load payments";
   }
+
+  if (!payload) {
+    return (
+      <ErrorCard
+        title="Unable to load payments"
+        message={loadError ?? "Request failed"}
+      />
+    );
+  }
+
+  return (
+    <PaymentsTable
+      data={payload.data}
+      page={payload.page}
+      totalPages={payload.totalPages}
+      total={payload.total}
+      query={payload.query}
+    />
+  );
+}
+
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const sp = await searchParams;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Payments"
-        description="Payments ledger layout — advanced filters arrive later."
+        description="Browse and filter the normalized payments ledger."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Payments" },
         ]}
       />
-      <ModulePlaceholder
-        title="Layout ready"
-        description={`Connected to GET /api/v1/payments (${total} total).`}
-      >
-        {errorMessage ? (
-          <ErrorCard title="Preview unavailable" message={errorMessage} />
-        ) : preview.length === 0 ? (
-          <p className="text-sm text-[var(--muted-foreground)]">No payments yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px] text-left text-sm">
-              <thead className="text-[var(--muted-foreground)]">
-                <tr>
-                  <th className="pb-2 font-medium">Date</th>
-                  <th className="pb-2 font-medium">Status</th>
-                  <th className="pb-2 font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.map((p) => (
-                  <tr key={p.id} className="border-t border-[var(--border)]">
-                    <td className="py-2">{formatDate(p.payment_date)}</td>
-                    <td className="py-2">
-                      <StatusChip status={p.status} />
-                    </td>
-                    <td className="py-2">
-                      {p.amount_cents != null
-                        ? `$${(p.amount_cents / 100).toFixed(2)}`
-                        : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </ModulePlaceholder>
+      <Suspense fallback={null}>
+        <PaymentFilters
+          initial={{
+            status: first(sp.status),
+            currency: first(sp.currency),
+            from: first(sp.from),
+            to: first(sp.to),
+            customerId: first(sp.customerId),
+            productId: first(sp.productId),
+            subscriptionId: first(sp.subscriptionId),
+          }}
+        />
+      </Suspense>
+      <Suspense fallback={<LoadingTable />}>
+        <PaymentsResults searchParams={searchParams} />
+      </Suspense>
     </div>
   );
 }

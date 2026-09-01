@@ -28,6 +28,17 @@ export class ProductRepository extends BaseRepository<
     return (data as Product | null) ?? null;
   }
 
+  async findByIds(ids: string[]): Promise<Product[]> {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return [];
+    const { data, error } = await this.db()
+      .from(TABLE)
+      .select("*")
+      .in("id", unique);
+    if (error) this.throwMapped(error, "findByIds");
+    return (data ?? []) as Product[];
+  }
+
   async findBySku(sku: string): Promise<Product | null> {
     const { data, error } = await this.db()
       .from(TABLE)

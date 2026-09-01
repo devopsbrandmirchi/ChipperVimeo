@@ -45,6 +45,17 @@ export class CustomerRepository extends BaseRepository<
     return (data as Customer | null) ?? null;
   }
 
+  async findByIds(ids: string[]): Promise<Customer[]> {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return [];
+    const { data, error } = await this.db()
+      .from(TABLE)
+      .select("*")
+      .in("id", unique);
+    if (error) this.throwMapped(error, "findByIds");
+    return (data ?? []) as Customer[];
+  }
+
   async findByEmail(email: string): Promise<Customer[]> {
     const { data, error } = await this.db()
       .from(TABLE)

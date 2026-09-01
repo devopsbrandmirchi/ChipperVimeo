@@ -56,7 +56,13 @@ export class WebhookProcessingService {
       timeline,
       this.logger,
     );
-    const payments = new PaymentService(paymentRepo, customers, this.logger);
+    const payments = new PaymentService(
+      paymentRepo,
+      customers,
+      customerRepo,
+      productRepo,
+      this.logger,
+    );
 
     this.timeline = timeline;
 

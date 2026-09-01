@@ -74,6 +74,7 @@ export const paymentListQuerySchema = baseListQuerySchema.extend({
   status: z.string().optional(),
   customerId: z.string().uuid().optional(),
   subscriptionId: z.string().uuid().optional(),
+  productId: z.string().uuid().optional(),
   currency: z.string().optional(),
   from: dateStringSchema.optional(),
   to: dateStringSchema.optional(),

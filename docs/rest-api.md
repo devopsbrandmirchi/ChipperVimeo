@@ -112,15 +112,25 @@ Sort: `created_at`, `name`, `updated_at`, `sku`.
 
 #### `GET /api/v1/products/[id]`
 
+#### `GET /api/v1/products/export`
+
+CSV export (same filters as list). Max 10,000 rows.
+
 #### `GET /api/v1/payments`
 
-Filters: `status`, `customerId`, `subscriptionId`, `currency`, `from`, `to`.
+Filters: `status`, `customerId`, `subscriptionId`, `productId`, `currency`, `from`, `to`.
 
 Sort: `created_at`, `payment_date`, `amount_cents`, `status`.
 
-Date range / currency compositions → ≤200 candidate path.
+List responses include enriched `customer_email`, `customer_name`, `product_name`. SQL-level pagination via `paginateFiltered` (no ≤200 candidate path for admin filters).
 
 #### `GET /api/v1/payments/[id]`
+
+Enriched detail (same display fields as list).
+
+#### `GET /api/v1/payments/export`
+
+CSV export (same filters as list). Max 10,000 rows.
 
 #### `GET /api/v1/webhook-events`
 

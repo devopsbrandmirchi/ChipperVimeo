@@ -1,5 +1,9 @@
 import type { Payment } from "@/types/database";
-import type { PaymentListFilters, ResourceStatistics } from "@/types/common";
+import type {
+  PaymentListFilters,
+  PaymentListItem,
+  ResourceStatistics,
+} from "@/types/common";
 import type { ApiPageRequest, PaginatedResult } from "@/types/pagination";
 
 export type RecordPaymentInput = {
@@ -25,15 +29,18 @@ export interface IPaymentService {
   recordFailed(input: RecordPaymentInput): Promise<Payment | null>;
   recordRecovered(input: RecordPaymentInput): Promise<Payment | null>;
 
-  getById(id: string): Promise<Payment>;
+  getById(id: string): Promise<PaymentListItem>;
   list(
     filters?: PaymentListFilters,
     page?: ApiPageRequest,
-  ): Promise<PaginatedResult<Payment>>;
+  ): Promise<PaginatedResult<PaymentListItem>>;
+  listForExport(
+    filters?: PaymentListFilters,
+  ): Promise<{ items: PaymentListItem[]; total: number }>;
   findBetweenDates(
     from: string,
     to: string,
     page?: ApiPageRequest,
-  ): Promise<PaginatedResult<Payment>>;
+  ): Promise<PaginatedResult<PaymentListItem>>;
   getStatistics(): Promise<ResourceStatistics>;
 }

@@ -2,7 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { BaseRepository } from "@/repositories/base.repository";
 import type { Payment, PaymentInsert, PaymentUpdate } from "@/types/database";
-import type { DateRangeOptions } from "@/types/repository";
+import type {
+  DateRangeOptions,
+  PaginatedResult,
+  PaymentListFilterOptions,
+} from "@/types/repository";
 
 const TABLE = "payments";
 
@@ -76,5 +80,58 @@ export class PaymentRepository extends BaseRepository<
 
     if (error) this.throwMapped(error, "findBetweenDates");
     return (data ?? []) as Payment[];
+  }
+
+  /**
+   * SQL-level filters + pagination for the admin payments ledger.
+   * Supports date range and productId without the ≤200 candidate path.
+   */
+  async paginateFiltered(
+    opts: PaymentListFilterOptions = {},
+  ): Promise<PaginatedResult<Payment>> {
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = Math.min(Math.max(1, opts.pageSize ?? 25), 10_000);
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const sortBy = opts.sortBy ?? "payment_date";
+    const ascending = (opts.sortDirection ?? "desc") === "asc";
+
+    let query = this.db().from(TABLE).select("*", { count: "exact" });
+
+    if (opts.status) {
+      query = query.ilike("status", opts.status);
+    }
+    if (opts.customerId) {
+      query = query.eq("customer_id", opts.customerId);
+    }
+    if (opts.subscriptionId) {
+      query = query.eq("subscription_id", opts.subscriptionId);
+    }
+    if (opts.productId) {
+      query = query.eq("product_id", opts.productId);
+    }
+    if (opts.currency) {
+      query = query.ilike("currency", opts.currency);
+    }
+    if (opts.from) {
+      query = query.gte("payment_date", opts.from);
+    }
+    if (opts.to) {
+      query = query.lte("payment_date", `${opts.to}T23:59:59.999Z`);
+    }
+
+    const { data, error, count } = await query
+      .order(sortBy, { ascending, nullsFirst: false })
+      .range(from, to);
+
+    if (error) this.throwMapped(error, "paginateFiltered");
+    const total = count ?? 0;
+    return {
+      items: (data ?? []) as Payment[],
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize) || 1),
+    };
   }
 }

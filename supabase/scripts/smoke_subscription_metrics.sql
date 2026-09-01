@@ -1,4 +1,9 @@
--- Quick smoke test after applying migration 031
+-- Quick smoke test after applying migration 031 / Phase 9.5 RPCs.
+-- For full Vimeo QA (coverage + stock/MRR), use Phase 10.5:
+--   supabase/scripts/phase_10_5_validate_gain_loss.sql
+--   supabase/scripts/phase_10_5_validate_stock_mrr.sql
+--   docs/analytics/phase-10.5-vimeo-validation-runbook.md
+--
 -- Expect rows in < a few seconds for a 7-day window
 
 select *

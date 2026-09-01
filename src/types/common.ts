@@ -3,6 +3,8 @@
  * Framework-agnostic — safe to relocate to a future `core/` package.
  */
 
+import type { Payment } from "@/types/database";
+
 export type CustomerListFilters = {
   status?: string;
   subscriptionStatus?: string;
@@ -37,9 +39,17 @@ export type PaymentListFilters = {
   status?: string;
   customerId?: string;
   subscriptionId?: string;
+  productId?: string;
   currency?: string;
   from?: string;
   to?: string;
+};
+
+/** Payment row with display fields for admin list/detail. */
+export type PaymentListItem = Payment & {
+  customer_email: string | null;
+  customer_name: string | null;
+  product_name: string | null;
 };
 
 export type WebhookEventListFilters = {

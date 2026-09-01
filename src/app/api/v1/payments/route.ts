@@ -17,6 +17,7 @@ export const GET = createApiHandler(async ({ request, requestId }) => {
       status: query.status,
       customerId: query.customerId,
       subscriptionId: query.subscriptionId,
+      productId: query.productId,
       currency: query.currency,
       from: query.from,
       to: query.to,

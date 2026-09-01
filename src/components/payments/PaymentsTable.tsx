@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 
 import { FilterPendingBanner } from "@/components/common/FilterPendingBanner";
 import { StatusChip } from "@/components/common/feedback";
@@ -12,36 +12,43 @@ import { DataTable } from "@/components/tables/DataTable";
 import { PaginationLinks } from "@/components/tables/Pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatDate } from "@/lib/utils";
-import type { Subscription } from "@/types/database";
+import { displayName, formatDate } from "@/lib/utils";
+import type { PaymentListItem } from "@/types/common";
 
-function money(cents: number | null): string {
+function money(cents: number | null, currency: string | null): string {
   if (cents == null) return "—";
-  return `$${(cents / 100).toLocaleString("en-US", {
+  const amount = (cents / 100).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`;
+  });
+  return currency ? `${amount} ${currency}` : `$${amount}`;
 }
 
-function shortId(id: string): string {
-  return id.slice(0, 8);
+function shortId(id: string | null): string {
+  if (!id) return "—";
+  return `${id.slice(0, 8)}…`;
 }
 
-export function SubscriptionsTable({
+export function PaymentsTable({
   data,
   page,
   totalPages,
   total,
   query,
 }: {
-  data: Subscription[];
+  data: PaymentListItem[];
   page: number;
   totalPages: number;
   total: number;
   query: Record<string, string | undefined>;
 }) {
-  const columns = useMemo<ColumnDef<Subscription>[]>(
+  const columns = useMemo<ColumnDef<PaymentListItem>[]>(
     () => [
+      {
+        header: "Date",
+        accessorKey: "payment_date",
+        cell: ({ getValue }) => formatDate(getValue() as string | null),
+      },
       {
         header: "Status",
         accessorKey: "status",
@@ -50,72 +57,55 @@ export function SubscriptionsTable({
         ),
       },
       {
-        header: "Billing",
-        accessorKey: "billing_frequency",
-        cell: ({ getValue }) => (getValue() as string | null) ?? "—",
-      },
-      {
-        header: "Trial",
-        accessorKey: "free_trial",
-        cell: ({ getValue }) => ((getValue() as boolean | null) ? "Yes" : "No"),
-      },
-      {
-        header: "Price",
-        accessorKey: "price_cents",
-        cell: ({ row }) => (
-          <span>
-            {money(row.original.price_cents)}
-            {row.original.currency ? (
-              <span className="ml-1 text-xs text-[var(--muted-foreground)]">
-                {row.original.currency}
-              </span>
-            ) : null}
-          </span>
-        ),
-      },
-      {
-        header: "Started",
-        accessorKey: "started_at",
-        cell: ({ getValue }) => formatDate(getValue() as string | null),
-      },
-      {
-        header: "Renewal",
-        accessorKey: "renewal_date",
-        cell: ({ getValue }) => formatDate(getValue() as string | null),
-      },
-      {
-        header: "Cancelled",
-        accessorKey: "cancelled_at",
-        cell: ({ getValue }) => formatDate(getValue() as string | null),
+        header: "Amount",
+        accessorKey: "amount_cents",
+        cell: ({ row }) =>
+          money(row.original.amount_cents, row.original.currency),
       },
       {
         header: "Customer",
-        accessorKey: "customer_id",
-        cell: ({ getValue }) => {
-          const id = getValue() as string;
-          return (
-            <Link
-              href={`/customers/${id}`}
-              className="font-medium hover:underline"
-            >
-              {shortId(id)}…
-            </Link>
-          );
-        },
+        id: "customer",
+        cell: ({ row }) => (
+          <Link
+            href={`/customers/${row.original.customer_id}`}
+            className="font-medium hover:underline"
+          >
+            {displayName(row.original.customer_name, row.original.customer_email)}
+          </Link>
+        ),
       },
       {
         header: "Product",
-        accessorKey: "product_id",
-        cell: ({ getValue }) => {
-          const id = getValue() as string;
-          return (
+        id: "product",
+        cell: ({ row }) =>
+          row.original.product_id ? (
             <Link
-              href={`/products/${id}`}
-              className="font-medium hover:underline"
+              href={`/products/${row.original.product_id}`}
+              className="hover:underline"
             >
-              {shortId(id)}…
+              {row.original.product_name ?? shortId(row.original.product_id)}
             </Link>
-          );
+          ) : (
+            "—"
+          ),
+      },
+      {
+        header: "Subscription",
+        accessorKey: "subscription_id",
+        cell: ({ getValue }) => shortId(getValue() as string | null),
+      },
+      {
+        header: "Provider",
+        accessorKey: "payment_provider",
+        cell: ({ getValue }) => (getValue() as string | null) ?? "—",
+      },
+      {
+        header: "Failure",
+        accessorKey: "failure_reason",
+        cell: ({ getValue }) => {
+          const v = getValue() as string | null;
+          if (!v) return "—";
+          return v.length > 40 ? `${v.slice(0, 40)}…` : v;
         },
       },
       {
@@ -123,9 +113,7 @@ export function SubscriptionsTable({
         id: "actions",
         cell: ({ row }) => (
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/customers/${row.original.customer_id}`}>
-              View customer
-            </Link>
+            <Link href={`/payments/${row.original.id}`}>View</Link>
           </Button>
         ),
       },
@@ -133,36 +121,53 @@ export function SubscriptionsTable({
     [],
   );
 
+  const exportHref = useMemo(() => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value) params.set(key, value);
+    }
+    const qs = params.toString();
+    return `/api/v1/payments/export${qs ? `?${qs}` : ""}`;
+  }, [query]);
+
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" asChild>
+          <a href={exportHref}>
+            <Download className="size-3.5" />
+            Export CSV
+          </a>
+        </Button>
+      </div>
       <DataTable
         columns={columns}
         data={data}
-        emptyTitle="No subscriptions found"
-        emptyDescription="Adjust filters or ingest more webhook events."
+        emptyTitle="No payments found"
+        emptyDescription="Adjust filters or wait for payment webhooks."
       />
       <PaginationLinks
         page={page}
         totalPages={totalPages}
         total={total}
-        basePath="/subscriptions"
+        basePath="/payments"
         query={query}
       />
     </div>
   );
 }
 
-export function SubscriptionFilters({
+export function PaymentFilters({
   initial,
 }: {
   initial: {
     status?: string;
-    billingFrequency?: string;
-    trial?: string;
-    renewalFrom?: string;
-    renewalTo?: string;
+    currency?: string;
+    from?: string;
+    to?: string;
     customerId?: string;
     productId?: string;
+    subscriptionId?: string;
   };
 }) {
   const router = useRouter();
@@ -170,14 +175,14 @@ export function SubscriptionFilters({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [status, setStatus] = useState(initial.status ?? "");
-  const [billingFrequency, setBillingFrequency] = useState(
-    initial.billingFrequency ?? "",
-  );
-  const [trial, setTrial] = useState(initial.trial ?? "");
-  const [renewalFrom, setRenewalFrom] = useState(initial.renewalFrom ?? "");
-  const [renewalTo, setRenewalTo] = useState(initial.renewalTo ?? "");
+  const [currency, setCurrency] = useState(initial.currency ?? "");
+  const [from, setFrom] = useState(initial.from ?? "");
+  const [to, setTo] = useState(initial.to ?? "");
   const [customerId, setCustomerId] = useState(initial.customerId ?? "");
   const [productId, setProductId] = useState(initial.productId ?? "");
+  const [subscriptionId, setSubscriptionId] = useState(
+    initial.subscriptionId ?? "",
+  );
 
   function apply(e: FormEvent) {
     e.preventDefault();
@@ -187,12 +192,12 @@ export function SubscriptionFilters({
       else params.delete(key);
     };
     setOrDelete("status", status);
-    setOrDelete("billingFrequency", billingFrequency);
-    setOrDelete("trial", trial);
-    setOrDelete("renewalFrom", renewalFrom);
-    setOrDelete("renewalTo", renewalTo);
+    setOrDelete("currency", currency);
+    setOrDelete("from", from);
+    setOrDelete("to", to);
     setOrDelete("customerId", customerId);
     setOrDelete("productId", productId);
+    setOrDelete("subscriptionId", subscriptionId);
     params.set("page", "1");
     startTransition(() => {
       router.push(`${pathname}?${params.toString()}`);
@@ -215,40 +220,29 @@ export function SubscriptionFilters({
         <Input
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          placeholder="Status e.g. Enabled"
+          placeholder="Status e.g. succeeded"
           disabled={isPending}
         />
         <Input
-          value={billingFrequency}
-          onChange={(e) => setBillingFrequency(e.target.value)}
-          placeholder="Billing e.g. monthly"
-          disabled={isPending}
-        />
-        <select
-          value={trial}
-          onChange={(e) => setTrial(e.target.value)}
-          className="h-9 rounded-md border border-[var(--input)] bg-transparent px-3 text-sm disabled:opacity-50"
-          aria-label="Trial filter"
-          disabled={isPending}
-        >
-          <option value="">Trial: any</option>
-          <option value="true">Trial only</option>
-          <option value="false">Non-trial</option>
-        </select>
-        <Input
-          type="date"
-          value={renewalFrom}
-          onChange={(e) => setRenewalFrom(e.target.value)}
-          aria-label="Renewal from"
-          title="Renewal from"
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+          placeholder="Currency e.g. USD"
           disabled={isPending}
         />
         <Input
           type="date"
-          value={renewalTo}
-          onChange={(e) => setRenewalTo(e.target.value)}
-          aria-label="Renewal to"
-          title="Renewal to"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          aria-label="From date"
+          title="From"
+          disabled={isPending}
+        />
+        <Input
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          aria-label="To date"
+          title="To"
           disabled={isPending}
         />
         <Input
@@ -263,16 +257,20 @@ export function SubscriptionFilters({
           placeholder="Product UUID"
           disabled={isPending}
         />
+        <Input
+          value={subscriptionId}
+          onChange={(e) => setSubscriptionId(e.target.value)}
+          placeholder="Subscription UUID"
+          disabled={isPending}
+        />
       </div>
       <p className="text-xs text-[var(--muted-foreground)]">
-        Status and billing are case-insensitive partial matches. Date fields
-        filter by renewal date (UTC). Open a row via customer for full detail.
+        Date range filters by payment_date (UTC). Deep-link filters from customer
+        or product detail pages are supported.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" size="sm" disabled={isPending}>
-          {isPending ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : null}
+          {isPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
           {isPending ? "Loading…" : "Apply filters"}
         </Button>
         <Button
