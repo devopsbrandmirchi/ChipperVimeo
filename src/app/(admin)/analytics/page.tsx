@@ -6,7 +6,7 @@ import { GainLossToolbar } from "@/components/analytics/GainLossToolbar";
 import { SubscriptionHealthMetrics } from "@/components/analytics/SubscriptionHealthMetrics";
 import { StatCard } from "@/components/cards/MetricCard";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
-import { LoadingSpinner, ModulePlaceholder } from "@/components/common/feedback";
+import { LoadingSpinner } from "@/components/common/feedback";
 import { RefreshErrorCard } from "@/components/common/RefreshErrorCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiClientError } from "@/lib/api/errors";
@@ -15,15 +15,16 @@ import { subscriptionMetricsPresetSchema } from "@/modules/analytics/dto/filters
 import { mapSubscriptionHealthStock } from "@/modules/analytics/mappers/subscription-health.mappers";
 import { resolveSubscriptionMetricsRange } from "@/modules/analytics/mappers/subscription-metrics.mappers";
 import type {
+  AnalyticsOverview,
   ChurnAnalyticsResponse,
+  CountryAnalyticsResponse,
+  DailyAnalyticsResponse,
+  PlatformAnalyticsResponse,
+  ProductAnalyticsResponse,
+  RevenueResponse,
   SubscriptionMetricsResponse,
   TrialAnalyticsResponse,
 } from "@/modules/analytics/dto/responses";
-import type {
-  AnalyticsOverview,
-  DimensionSummary,
-  RevenueSummary,
-} from "@/services/interfaces/analytics-service.interface";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type MetricsPreset = z.infer<typeof subscriptionMetricsPresetSchema>;
@@ -36,6 +37,10 @@ function first(value: string | string[] | undefined): string | undefined {
 function parsePreset(value: string | undefined): MetricsPreset {
   const parsed = subscriptionMetricsPresetSchema.safeParse(value ?? "yesterday");
   return parsed.success ? parsed.data : "yesterday";
+}
+
+function shortDate(iso: string): string {
+  return iso.length >= 10 ? iso.slice(5, 10) : iso;
 }
 
 async function safeGet<T>(
@@ -125,50 +130,123 @@ export default async function AnalyticsPage({
     endDate,
   });
 
-  let overview: AnalyticsOverview | null = null;
-  let revenue: RevenueSummary | null = null;
-  let countries: DimensionSummary | null = null;
-  let platforms: DimensionSummary | null = null;
-  let loadError: string | null = null;
+  const [overview, daily, countries, platforms, products, gainLossLast30] =
+    await Promise.all([
+      safeGet<AnalyticsOverview>("/analytics/overview"),
+      safeGet<DailyAnalyticsResponse>("/analytics/daily"),
+      safeGet<CountryAnalyticsResponse>("/analytics/countries"),
+      safeGet<PlatformAnalyticsResponse>("/analytics/platforms"),
+      safeGet<ProductAnalyticsResponse>("/analytics/products"),
+      safeGet<SubscriptionMetricsResponse>("/analytics/subscription-metrics", {
+        preset: "last30",
+      }),
+    ]);
 
-  try {
-    const [overviewRes, revenueRes, countriesRes, platformsRes] =
-      await Promise.all([
-        apiGetServer<AnalyticsOverview>("/analytics/overview"),
-        apiGetServer<RevenueSummary>("/analytics/revenue"),
-        apiGetServer<DimensionSummary>("/analytics/countries"),
-        apiGetServer<DimensionSummary>("/analytics/platforms"),
-      ]);
-    overview = overviewRes.data;
-    revenue = revenueRes.data;
-    countries = countriesRes.data;
-    platforms = platformsRes.data;
-  } catch (error) {
-    loadError =
-      error instanceof ApiClientError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : "Request failed";
-  }
-
-  if (loadError || !overview || !revenue || !countries || !platforms) {
+  // Soft-fail charts if overview missing; gain/loss still loads in Suspense.
+  if (!overview) {
+    const revenue = await safeGet<RevenueResponse>("/analytics/revenue");
     return (
       <div className="space-y-6">
         <PageHeader title="Analytics" breadcrumbs={[{ label: "Analytics" }]} />
         <RefreshErrorCard
-          title="Unable to load analytics"
-          message={loadError ?? "Missing analytics data"}
+          title="Unable to load analytics overview"
+          message={
+            revenue?.note ??
+            "Overview snapshot unavailable. Gain/loss below may still work."
+          }
         />
+        <section className="space-y-4">
+          <GainLossToolbar
+            preset={range.preset}
+            startDate={range.startDate}
+            endDate={range.endDate}
+          />
+          <Suspense fallback={<GainLossFallback />}>
+            <AnalyticsGainLoss
+              preset={presetParam}
+              startDate={startDate}
+              endDate={endDate}
+            />
+          </Suspense>
+        </section>
       </div>
     );
   }
+
+  const dailyCustomerGrowth =
+    daily?.customers.map((r) => ({
+      name: shortDate(r.date),
+      value: r.newCustomers,
+    })) ?? [];
+
+  const dailyRevenueTrend =
+    daily?.payments.map((r) => ({
+      name: shortDate(r.date),
+      value: Number((r.revenueCents / 100).toFixed(2)),
+    })) ?? [];
+
+  const dailySubscriptionGrowth =
+    daily?.subscriptions.map((r) => ({
+      name: shortDate(r.date),
+      value: r.netGrowth,
+    })) ?? [];
+
+  const gainLossSeries = [...(gainLossLast30?.series ?? [])].sort((a, b) =>
+    (a.reportDate ?? a.key).localeCompare(b.reportDate ?? b.key),
+  );
+
+  const fallbackCustomerGrowth = gainLossSeries.map((r) => ({
+    name: shortDate(r.reportDate ?? r.key),
+    value: r.uniqueCustomersGain,
+  }));
+
+  const fallbackSubscriptionGrowth = gainLossSeries.map((r) => ({
+    name: shortDate(r.reportDate ?? r.key),
+    value: r.subscriptionGain - r.subscriptionLoss,
+  }));
+
+  const usingDailyCustomer = dailyCustomerGrowth.length > 0;
+  const usingDailyRevenue = dailyRevenueTrend.length > 0;
+  const usingDailySubs = dailySubscriptionGrowth.length > 0;
+
+  const customerGrowth = usingDailyCustomer
+    ? dailyCustomerGrowth
+    : fallbackCustomerGrowth;
+  const revenueTrend = dailyRevenueTrend;
+  const subscriptionGrowth = usingDailySubs
+    ? dailySubscriptionGrowth
+    : fallbackSubscriptionGrowth;
+
+  const platformPoints =
+    platforms?.platforms.slice(0, 8).map((p) => ({
+      name: p.platform || "Unknown",
+      value: p.openSubscriptionCount || p.customerCount,
+    })) ?? [];
+
+  const countryPoints =
+    countries?.countries.slice(0, 8).map((c) => ({
+      name: c.country || "Unknown",
+      value: c.openSubscriptionCount || c.customerCount,
+    })) ?? [];
+
+  const productPoints =
+    products?.products.slice(0, 8).map((p) => ({
+      name: p.name || p.productId.slice(0, 8),
+      value: p.openSubscribers || p.subscribers,
+    })) ?? [];
+
+  const dailySourceNote =
+    daily?.source === "mv_daily_metrics"
+      ? "analytics.mv_daily_metrics"
+      : daily
+        ? "daily snapshots"
+        : null;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Analytics"
-        description="Gain/loss reporting from subscription_events. Other charts remain snapshot-level."
+        description="Gain/loss from subscription_events, plus chart breakdowns from analytics MVs."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Analytics" },
@@ -190,34 +268,42 @@ export default async function AnalyticsPage({
         </Suspense>
       </section>
 
-      <ModulePlaceholder
-        title="Snapshot overview"
-        description="Values below come from existing /api/v1/analytics/* snapshot routes."
-      >
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">
+          Snapshot overview
+        </h2>
         <div className="grid gap-3 text-sm sm:grid-cols-3">
           <Stat label="Active subscribers" value={overview.activeSubscribers} />
           <Stat label="Trials" value={overview.trialSubscriptions} />
           <Stat label="Cancelled" value={overview.cancelledSubscriptions} />
         </div>
-      </ModulePlaceholder>
+      </section>
+
       <DashboardCharts
-        customerGrowth={[]}
-        revenueTrend={[]}
-        subscriptionGrowth={[
-          { name: "Active", value: overview.activeSubscribers },
-          { name: "Trial", value: overview.trialSubscriptions },
-          { name: "Cancelled", value: overview.cancelledSubscriptions },
-        ]}
-        platforms={[{ name: "All platforms", value: platforms.total }]}
-        countries={[{ name: "All countries", value: countries.total }]}
-        topProducts={[]}
+        customerGrowth={customerGrowth}
+        revenueTrend={revenueTrend}
+        subscriptionGrowth={subscriptionGrowth}
+        platforms={platformPoints}
+        countries={countryPoints}
+        topProducts={productPoints}
         notes={{
-          customers: "Series not implemented yet.",
-          revenue: revenue.note,
-          subscriptions: "Snapshot counts from overview.",
-          platforms: platforms.note,
-          countries: countries.note,
-          products: "Top products not implemented yet.",
+          customers: usingDailyCustomer
+            ? `Last 30 UTC days from ${dailySourceNote}. Values = new customers / day.`
+            : customerGrowth.length > 0
+              ? "Fallback: last 30 UTC days from subscription_events (unique customers gain / day)."
+              : "No series yet. Run in Supabase: select analytics.refresh_daily_metrics();",
+          revenue: usingDailyRevenue
+            ? `Last 30 UTC days from ${dailySourceNote}. Values = successful payment revenue ($).`
+            : "No revenue series yet — analytics.mv_daily_metrics is empty. Run: select analytics.refresh_daily_metrics();",
+          subscriptions: usingDailySubs
+            ? `Last 30 UTC days from ${dailySourceNote}. Values = net subscription growth / day.`
+            : subscriptionGrowth.length > 0
+              ? "Fallback: last 30 UTC days from subscription_events (subscription gain − loss / day)."
+              : "No series yet. Run in Supabase: select analytics.refresh_daily_metrics();",
+          platforms:
+            platforms?.note ?? "Open subscribers by platform (top 8).",
+          countries: countries?.note ?? "Open subscribers by country (top 8).",
+          products: "Open subscribers by product (top 8).",
         }}
       />
     </div>
