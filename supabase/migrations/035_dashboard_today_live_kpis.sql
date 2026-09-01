@@ -54,11 +54,13 @@ grant execute on function analytics.get_dashboard_today_kpis() to service_role, 
 
 -- Prefer concurrent refresh; fall back to non-concurrent if concurrent fails
 -- (lock contention, missing unique index edge cases, etc.).
+-- Raise statement_timeout: default API timeout (~8s) cancels large MV refresh.
 create or replace function analytics.refresh_dashboard()
 returns void
 language plpgsql
 security definer
 set search_path = analytics, public
+set statement_timeout = '600s'
 as $$
 begin
   begin
