@@ -4,6 +4,7 @@ import { ErrorCard, ModulePlaceholder } from "@/components/common/feedback";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { SettingsProfile } from "@/components/settings/SettingsProfile";
+import { SettingsUsers } from "@/components/settings/SettingsUsers";
 import { Button } from "@/components/ui/button";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
@@ -34,7 +35,7 @@ export default async function SettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Settings"
-        description="Profile, theme, and system information."
+        description="Profile, theme, user access, and system information."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Settings" },
@@ -42,6 +43,8 @@ export default async function SettingsPage() {
       />
 
       <SettingsProfile />
+
+      <SettingsUsers />
 
       <ModulePlaceholder
         title="Theme"

@@ -83,14 +83,25 @@ Example permissions:
 
 1. Add the role to `APP_ROLES` in [`src/auth/types/roles.ts`](../src/auth/types/roles.ts).
 2. Add a row to `ROLE_PERMISSIONS` in [`src/auth/types/permissions.ts`](../src/auth/types/permissions.ts).
-3. In Supabase Dashboard → Authentication → Users → App Metadata, set `"role": "YOUR_ROLE"`.
-4. No schema migration. Optional: call `AuthService.logRoleChange` from a future admin API for audit.
+3. Assign via **Settings → Users & access** (ADMIN), or in Supabase Dashboard → Authentication → Users → App Metadata `"role": "YOUR_ROLE"`.
+4. Role changes write to `public.auth_audit_events` (migration `038`).
 
 ### Bootstrap first ADMIN
 
-1. Create a user in Supabase Auth (Email provider).
-2. Edit **App Metadata** to `{ "role": "ADMIN" }`.
+1. Create a user in Supabase Auth (Email provider), **or** use Settings after one ADMIN exists.
+2. Edit **App Metadata** to `{ "role": "ADMIN" }` for the first user (Dashboard only for bootstrap).
 3. Sign in at `/login`.
+4. Further users: **Settings → Users & access** → Invite by email or Create with password.
+
+### Phase 11 admin APIs
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET` | `/api/v1/admin/users` | `settings:manage` |
+| `POST` | `/api/v1/admin/users` | `settings:manage` (invite \| create) |
+| `PATCH` | `/api/v1/admin/users/[id]` | `settings:manage` (role) |
+
+CSV exports require `products:export` / `payments:export`.
 
 ## Session lifecycle
 
@@ -107,7 +118,13 @@ Example permissions:
 - `logout`
 - `password_reset_request` / `password_reset`
 - `password_change`
-- `role_change` (helper for future use)
+
+Phase 11 also persists admin actions to **`public.auth_audit_events`**:
+
+- `user_invite` / `user_create`
+- `role_change`
+
+View recent events under **Settings → Access audit**.
 
 ## Security
 

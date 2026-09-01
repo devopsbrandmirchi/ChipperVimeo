@@ -4,9 +4,11 @@ import {
   parseSearchParams,
   paymentListQuerySchema,
 } from "@/app/api/v1/_shared/schemas";
+import { requirePermission } from "@/auth/guards/role.guard";
 import { createApiServices } from "@/lib/api/service-container";
 
-export const GET = createApiHandler(async ({ request, requestId }) => {
+export const GET = createApiHandler(async ({ request, requestId, user }) => {
+  requirePermission(user, "payments:export");
   const query = parseSearchParams(
     paymentListQuerySchema,
     request.nextUrl.searchParams,

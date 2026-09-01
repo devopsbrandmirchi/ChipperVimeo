@@ -6,6 +6,7 @@ import { useMemo, useState, useTransition, type FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Download, Loader2 } from "lucide-react";
 
+import { useAuth } from "@/auth/hooks/useAuth";
 import { FilterPendingBanner } from "@/components/common/FilterPendingBanner";
 import { StatusChip } from "@/components/common/feedback";
 import { DataTable } from "@/components/tables/DataTable";
@@ -36,6 +37,9 @@ export function ProductsTable({
   total: number;
   query: Record<string, string | undefined>;
 }) {
+  const { hasPermission } = useAuth();
+  const canExport = hasPermission("products:export");
+
   const columns = useMemo<ColumnDef<Product>[]>(
     () => [
       {
@@ -122,14 +126,16 @@ export function ProductsTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" asChild>
-          <a href={exportHref}>
-            <Download className="size-3.5" />
-            Export CSV
-          </a>
-        </Button>
-      </div>
+      {canExport ? (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" asChild>
+            <a href={exportHref}>
+              <Download className="size-3.5" />
+              Export CSV
+            </a>
+          </Button>
+        </div>
+      ) : null}
       <DataTable
         columns={columns}
         data={data}

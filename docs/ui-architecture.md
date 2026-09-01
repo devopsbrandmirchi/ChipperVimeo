@@ -24,7 +24,7 @@ RootLayout (ThemeProvider + AuthProvider + Toaster)
 | `/products`, `/products/[id]` | Production catalog list + read-only detail (CSV export) |
 | `/payments`, `/payments/[id]` | Production ledger list + detail (CSV export, enrichment) |
 | `/analytics` | Gain/loss + charts from analytics APIs |
-| `/settings` | Profile, theme, health, webhook note |
+| `/settings` | Profile, theme, health, webhook note, **Users & access** (Phase 11) |
 
 Auth pages (`/login`, password flows, `/access-denied`) stay outside `(admin)`.
 

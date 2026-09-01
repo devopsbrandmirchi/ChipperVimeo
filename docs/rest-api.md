@@ -114,7 +114,7 @@ Sort: `created_at`, `name`, `updated_at`, `sku`.
 
 #### `GET /api/v1/products/export`
 
-CSV export (same filters as list). Max 10,000 rows.
+CSV export (same filters as list). Max 10,000 rows. Requires `products:export`.
 
 #### `GET /api/v1/payments`
 
@@ -130,7 +130,19 @@ Enriched detail (same display fields as list).
 
 #### `GET /api/v1/payments/export`
 
-CSV export (same filters as list). Max 10,000 rows.
+CSV export (same filters as list). Max 10,000 rows. Requires `payments:export`.
+
+#### `GET /api/v1/admin/users`
+
+List Auth users + recent `auth_audit_events`. Requires `settings:manage` (ADMIN).
+
+#### `POST /api/v1/admin/users`
+
+Body: `{ email, role, method: "invite"|"create", password? }`. Requires `settings:manage`.
+
+#### `PATCH /api/v1/admin/users/[id]`
+
+Body: `{ role }`. Requires `settings:manage`. Cannot demote last ADMIN or self off ADMIN.
 
 #### `GET /api/v1/webhook-events`
 

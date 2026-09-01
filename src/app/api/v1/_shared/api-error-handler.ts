@@ -5,6 +5,7 @@ import {
   ForbiddenError,
   InvalidCredentialsError,
   UnauthorizedError,
+  AuthError,
 } from "@/auth/types/errors";
 import {
   BusinessRuleViolationError,
@@ -45,6 +46,13 @@ export function mapApiError(
 
   if (error instanceof ForbiddenError) {
     return errorResponse(error.message, 403, {
+      errors: [{ code: error.code, message: error.message }],
+      requestId,
+    });
+  }
+
+  if (error instanceof AuthError) {
+    return errorResponse(error.message, 400, {
       errors: [{ code: error.code, message: error.message }],
       requestId,
     });
