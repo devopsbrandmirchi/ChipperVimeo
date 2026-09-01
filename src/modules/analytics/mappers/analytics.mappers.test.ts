@@ -96,6 +96,53 @@ describe("mapDashboard", () => {
     });
     expect(d.cancelledToday).toBe(7);
   });
+
+  it("overlays live today KPI fields", () => {
+    const d = mapDashboard(
+      {
+        id: 1,
+        total_customers: 10,
+        new_customers_today: 1,
+        active_subscribers: 5,
+        paused_subscriptions: 0,
+        cancelled_subscriptions: 2,
+        expired_subscriptions: 1,
+        free_trial_subscriptions: 3,
+        renewals_today: 0,
+        cancelled_today: 0,
+        charge_failures: 0,
+        recovered_payments: 0,
+        revenue_today_cents: 100,
+        revenue_week_cents: 200,
+        revenue_month_cents: 300,
+        revenue_year_cents: 400,
+        mrr_cents: 1000,
+        arr_cents: 12000,
+        arpu_cents: 200,
+        arppu_proxy_cents: 250,
+        trial_conversion_pct: 40,
+        churn_rate_pct: 10,
+        retention_rate_pct: 90,
+        payment_recovery_rate_pct: 0,
+        refreshed_at: "2026-08-19T00:00:00Z",
+      },
+      {
+        new_customers_today: 42,
+        renewals_today: 7,
+        cancelled_today: 3,
+        revenue_today_cents: 999,
+        as_of: "2026-09-01T06:00:00Z",
+      },
+    );
+    expect(d.todayLive).toBe(true);
+    expect(d.newCustomersToday).toBe(42);
+    expect(d.renewalsToday).toBe(7);
+    expect(d.cancelledToday).toBe(3);
+    expect(d.revenueTodayCents).toBe(999);
+    expect(d.todayAsOf).toBe("2026-09-01T06:00:00Z");
+    expect(d.mrrCents).toBe(1000);
+    expect(d.refreshedAt).toBe("2026-08-19T00:00:00Z");
+  });
 });
 
 describe("isDashboardSnapshotStale", () => {

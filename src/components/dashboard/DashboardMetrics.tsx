@@ -22,19 +22,25 @@ export function DashboardMetrics({
   dashboard: DashboardResponse;
 }) {
   const stale = isDashboardSnapshotStale(dashboard.refreshedAt);
-  const refreshed = dashboard.refreshedAt
-    ? `Snapshot as of ${formatUtc(dashboard.refreshedAt)}`
-    : "Snapshot time unknown";
+  const snapshotLabel = dashboard.refreshedAt
+    ? `Stock / MRR / MTD snapshot as of ${formatUtc(dashboard.refreshedAt)}`
+    : "Stock / MRR / MTD snapshot time unknown";
+  const todayLabel = dashboard.todayLive
+    ? `Today KPIs are live UTC${
+        dashboard.todayAsOf ? ` (queried ${formatUtc(dashboard.todayAsOf)})` : ""
+      }`
+    : "Today KPIs from snapshot (apply migration 035 for live today cards)";
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-0.5">
-          <p className="text-xs text-[var(--muted-foreground)]">{refreshed}</p>
+          <p className="text-xs text-[var(--muted-foreground)]">{todayLabel}</p>
+          <p className="text-xs text-[var(--muted-foreground)]">{snapshotLabel}</p>
           {stale ? (
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              Snapshot is stale — “today” KPIs may reflect an older UTC day. Click
-              Refresh snapshot or reload the page.
+              Snapshot is older than today UTC — MTD / MRR / ARR may lag. Click
+              Refresh snapshot to rebuild analytics.mv_dashboard.
             </p>
           ) : null}
         </div>
@@ -65,43 +71,55 @@ export function DashboardMetrics({
         <MetricCard
           title="New customers today"
           value={dashboard.newCustomersToday}
-          hint="UTC calendar day"
+          hint={dashboard.todayLive ? "Live UTC calendar day" : "UTC calendar day"}
         />
         <MetricCard
           title="Renewals today"
           value={dashboard.renewalsToday}
-          hint="Subscriptions with renewal date today (UTC)"
+          hint={
+            dashboard.todayLive
+              ? "Live · renewal date today (UTC)"
+              : "Subscriptions with renewal date today (UTC)"
+          }
         />
         <MetricCard
           title="Cancelled today"
           value={dashboard.cancelledToday}
-          hint="cancelled_at on UTC calendar day"
+          hint={
+            dashboard.todayLive
+              ? "Live · cancelled_at on UTC day"
+              : "cancelled_at on UTC calendar day"
+          }
         />
         <MetricCard
           title="Revenue today"
           value={money(dashboard.revenueTodayCents)}
-          hint="Successful payments today (UTC)"
+          hint={
+            dashboard.todayLive
+              ? "Live · successful payments today (UTC)"
+              : "Successful payments today (UTC)"
+          }
         />
 
         <MetricCard
           title="Revenue this month"
           value={money(dashboard.revenueMonthCents)}
-          hint="Successful payments MTD (UTC)"
+          hint="Successful payments MTD (UTC) · from snapshot"
         />
         <MetricCard
           title="Revenue this year"
           value={money(dashboard.revenueYearCents)}
-          hint="Successful payments YTD (UTC)"
+          hint="Successful payments YTD (UTC) · from snapshot"
         />
         <MetricCard
           title="MRR"
           value={money(dashboard.mrrCents)}
-          hint="From open paid subscription MRR"
+          hint="From open paid subscription MRR · snapshot"
         />
         <MetricCard
           title="ARR"
           value={money(dashboard.arrCents)}
-          hint="MRR × 12"
+          hint="MRR × 12 · snapshot"
         />
       </div>
     </div>

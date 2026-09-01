@@ -23,6 +23,10 @@ export type DashboardResponse = {
   retentionRatePct: number;
   paymentRecoveryRatePct: number;
   refreshedAt: string | null;
+  /** True when today cards were overlaid from live UTC queries. */
+  todayLive?: boolean;
+  /** Timestamp of live today KPI query (UTC ISO). */
+  todayAsOf?: string | null;
 };
 
 export type RevenueResponse = {

@@ -27,6 +27,14 @@ export type DashboardRow = {
   refreshed_at: string;
 };
 
+export type DashboardTodayKpiRow = {
+  new_customers_today: number;
+  renewals_today: number;
+  cancelled_today: number;
+  revenue_today_cents: number;
+  as_of: string;
+};
+
 export type DailyMetricRow = {
   metric_date: string;
   new_customers: number;

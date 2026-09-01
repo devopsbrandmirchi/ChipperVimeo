@@ -7,6 +7,7 @@ import type {
   CustomerMetricRow,
   DailyMetricRow,
   DashboardRow,
+  DashboardTodayKpiRow,
   LtvMetricRow,
   MonthlyMetricRow,
   PaymentMetricRow,
@@ -74,6 +75,13 @@ export class AnalyticsRepository {
       .maybeSingle();
     if (error) this.throwMapped(error, "getDashboard");
     return (data as DashboardRow | null) ?? null;
+  }
+
+  async getDashboardTodayKpis(): Promise<DashboardTodayKpiRow | null> {
+    const { data, error } = await this.db().rpc("get_dashboard_today_kpis");
+    if (error) this.throwMapped(error, "getDashboardTodayKpis");
+    const row = Array.isArray(data) ? data[0] : data;
+    return (row as DashboardTodayKpiRow | null) ?? null;
   }
 
   async getSubscriptionMetrics(): Promise<SubscriptionMetricRow | null> {

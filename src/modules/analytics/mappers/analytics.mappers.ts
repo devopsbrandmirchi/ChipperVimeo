@@ -20,6 +20,7 @@ import type {
   CustomerMetricRow,
   DailyMetricRow,
   DashboardRow,
+  DashboardTodayKpiRow,
   LtvMetricRow,
   MonthlyMetricRow,
   PaymentMetricRow,
@@ -35,11 +36,18 @@ function num(value: unknown): number {
   return 0;
 }
 
-export function mapDashboard(row: DashboardRow | null): DashboardResponse {
+export function mapDashboard(
+  row: DashboardRow | null,
+  todayLive?: DashboardTodayKpiRow | null,
+): DashboardResponse {
   if (!row) {
-    return emptyDashboard();
+    const empty = emptyDashboard();
+    if (todayLive) {
+      return applyTodayLiveOverlay(empty, todayLive);
+    }
+    return empty;
   }
-  return {
+  const mapped = {
     totalCustomers: num(row.total_customers),
     newCustomersToday: num(row.new_customers_today),
     activeSubscribers: num(row.active_subscribers),
@@ -64,6 +72,27 @@ export function mapDashboard(row: DashboardRow | null): DashboardResponse {
     retentionRatePct: num(row.retention_rate_pct),
     paymentRecoveryRatePct: num(row.payment_recovery_rate_pct),
     refreshedAt: row.refreshed_at ?? null,
+    todayLive: false,
+    todayAsOf: null as string | null,
+  };
+  if (todayLive) {
+    return applyTodayLiveOverlay(mapped, todayLive);
+  }
+  return mapped;
+}
+
+function applyTodayLiveOverlay(
+  dashboard: DashboardResponse,
+  todayLive: DashboardTodayKpiRow,
+): DashboardResponse {
+  return {
+    ...dashboard,
+    newCustomersToday: num(todayLive.new_customers_today),
+    renewalsToday: num(todayLive.renewals_today),
+    cancelledToday: num(todayLive.cancelled_today),
+    revenueTodayCents: num(todayLive.revenue_today_cents),
+    todayLive: true,
+    todayAsOf: todayLive.as_of ?? null,
   };
 }
 
@@ -93,6 +122,8 @@ export function emptyDashboard(): DashboardResponse {
     retentionRatePct: 0,
     paymentRecoveryRatePct: 0,
     refreshedAt: null,
+    todayLive: false,
+    todayAsOf: null,
   };
 }
 

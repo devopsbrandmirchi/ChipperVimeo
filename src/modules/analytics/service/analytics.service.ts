@@ -37,7 +37,6 @@ import {
   mapRevenue,
   mapSubscriptions,
   mapTrials,
-  isDashboardSnapshotStale,
 } from "@/modules/analytics/mappers/analytics.mappers";
 import {
   defaultLast30DaysFilters,
@@ -150,27 +149,19 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
   async getDashboard(): Promise<DashboardResponse> {
     return this.timed("getDashboard", async () => {
       try {
-        let row = await this.repo.getDashboard();
-        if (isDashboardSnapshotStale(row?.refreshed_at)) {
-          try {
-            await this.repo.refresh("dashboard");
-            row = await this.repo.getDashboard();
-            this.logger.info("Dashboard snapshot refreshed", {
-              action: "dashboard_auto_refresh",
-              refreshedAt: row?.refreshed_at ?? null,
-            });
-          } catch (error) {
-            this.logger.warn(
-              "Dashboard auto-refresh failed; serving cached snapshot",
-              {
-                action: "dashboard_auto_refresh_failed",
-                error: error instanceof Error ? error.message : "unknown",
-                refreshedAt: row?.refreshed_at ?? null,
-              },
-            );
-          }
+        const row = await this.repo.getDashboard();
+        // Do not block page load on full MV refresh (often times out on large DBs).
+        // Always overlay live UTC "today" KPIs so today cards match the current day.
+        let todayLive = null;
+        try {
+          todayLive = await this.repo.getDashboardTodayKpis();
+        } catch (error) {
+          this.logger.warn("Live today KPIs unavailable; using snapshot today fields", {
+            action: "dashboard_today_live_failed",
+            error: error instanceof Error ? error.message : "unknown",
+          });
         }
-        return mapDashboard(row);
+        return mapDashboard(row, todayLive);
       } catch (error) {
         this.mapRepositoryError(error, "getDashboard");
       }
