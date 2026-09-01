@@ -7,6 +7,7 @@ import {
   BarChart as ReBarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart as ReLineChart,
   Pie,
@@ -19,7 +20,16 @@ import {
 
 import { EmptyState } from "@/components/common/feedback";
 
-const COLORS = ["#18181b", "#52525b", "#a1a1aa", "#3f3f46", "#71717a", "#d4d4d8"];
+const COLORS = [
+  "#18181b",
+  "#3f3f46",
+  "#52525b",
+  "#71717a",
+  "#a1a1aa",
+  "#d4d4d8",
+  "#27272a",
+  "#09090b",
+];
 
 export type ChartPoint = { name: string; value: number };
 
@@ -28,11 +38,13 @@ function ChartShell({
   note,
   children,
   empty,
+  chartClassName = "h-56",
 }: {
   title: string;
   note?: string;
   children: React.ReactNode;
   empty?: boolean;
+  chartClassName?: string;
 }) {
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm">
@@ -48,7 +60,7 @@ function ChartShell({
           description={note ?? "Placeholder analytics — breakdowns arrive in a later phase."}
         />
       ) : (
-        <div className="h-56 w-full">{children}</div>
+        <div className={`w-full ${chartClassName}`}>{children}</div>
       )}
     </div>
   );
@@ -140,15 +152,47 @@ export function PieChart({
 }) {
   const empty = data.length === 0 || data.every((d) => d.value === 0);
   return (
-    <ChartShell title={title} note={note} empty={empty}>
+    <ChartShell title={title} note={note} empty={empty} chartClassName="h-72">
       <ResponsiveContainer width="100%" height="100%">
-        <RePieChart>
-          <Pie data={data} dataKey="value" nameKey="name" outerRadius={80} label>
+        <RePieChart margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            cx="42%"
+            cy="50%"
+            outerRadius={78}
+            label={false}
+          >
             {data.map((_, index) => (
               <Cell key={index} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip />
+          <Tooltip
+            formatter={(value) => [
+              typeof value === "number" ? value.toLocaleString("en-US") : value,
+              "Count",
+            ]}
+          />
+          <Legend
+            layout="vertical"
+            align="right"
+            verticalAlign="middle"
+            iconType="circle"
+            iconSize={8}
+            wrapperStyle={{
+              fontSize: 12,
+              lineHeight: "18px",
+              maxWidth: "46%",
+              overflow: "hidden",
+            }}
+            formatter={(value) => {
+              const point = data.find((d) => d.name === value);
+              const count =
+                point != null ? point.value.toLocaleString("en-US") : "";
+              return `${value}${count ? ` (${count})` : ""}`;
+            }}
+          />
         </RePieChart>
       </ResponsiveContainer>
     </ChartShell>
