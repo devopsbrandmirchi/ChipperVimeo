@@ -6,9 +6,18 @@ import type {
   SubscriptionInsert,
   SubscriptionUpdate,
 } from "@/types/database";
-import type { SubscriptionSearchOptions } from "@/types/repository";
+import type {
+  PaginateOptions,
+  PaginatedResult,
+  SubscriptionListFilterOptions,
+  SubscriptionSearchOptions,
+} from "@/types/repository";
 
 const TABLE = "subscriptions";
+
+function sanitizeFilterTerm(value: string): string {
+  return value.replace(/[%_,.()]/g, " ").replace(/\s+/g, " ").trim();
+}
 
 export class SubscriptionRepository extends BaseRepository<
   Subscription,
@@ -105,10 +114,13 @@ export class SubscriptionRepository extends BaseRepository<
     let query = this.db().from(TABLE).select("*");
 
     if (options.status) {
-      query = query.eq("status", options.status);
+      query = query.ilike("status", `%${sanitizeFilterTerm(options.status)}%`);
     }
     if (options.billingFrequency) {
-      query = query.eq("billing_frequency", options.billingFrequency);
+      query = query.ilike(
+        "billing_frequency",
+        `%${sanitizeFilterTerm(options.billingFrequency)}%`,
+      );
     }
     if (options.productId) {
       query = query.eq("product_id", options.productId);
@@ -123,5 +135,59 @@ export class SubscriptionRepository extends BaseRepository<
 
     if (error) this.throwMapped(error, "search");
     return (data ?? []) as Subscription[];
+  }
+
+  async paginateFiltered(
+    opts: SubscriptionListFilterOptions = {},
+  ): Promise<PaginatedResult<Subscription>> {
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = Math.min(Math.max(1, opts.pageSize ?? 25), 200);
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const sortBy = opts.sortBy ?? "started_at";
+    const ascending = (opts.sortDirection ?? "desc") === "asc";
+
+    let query = this.db().from(TABLE).select("*", { count: "exact" });
+
+    if (opts.status) {
+      query = query.ilike("status", `%${sanitizeFilterTerm(opts.status)}%`);
+    }
+    if (opts.billingFrequency) {
+      query = query.ilike(
+        "billing_frequency",
+        `%${sanitizeFilterTerm(opts.billingFrequency)}%`,
+      );
+    }
+    if (opts.productId) {
+      query = query.eq("product_id", opts.productId);
+    }
+    if (opts.customerId) {
+      query = query.eq("customer_id", opts.customerId);
+    }
+    if (opts.trial === true) {
+      query = query.eq("free_trial", true);
+    } else if (opts.trial === false) {
+      query = query.or("free_trial.is.null,free_trial.eq.false");
+    }
+    if (opts.renewalFrom) {
+      query = query.gte("renewal_date", opts.renewalFrom);
+    }
+    if (opts.renewalTo) {
+      query = query.lte("renewal_date", `${opts.renewalTo}T23:59:59.999Z`);
+    }
+
+    const { data, error, count } = await query
+      .order(sortBy, { ascending, nullsFirst: false })
+      .range(from, to);
+
+    if (error) this.throwMapped(error, "paginateFiltered");
+    const total = count ?? 0;
+    return {
+      items: (data ?? []) as Subscription[],
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
   }
 }

@@ -376,23 +376,16 @@ export class SubscriptionService
   ): Promise<PaginatedResult<Subscription>> {
     return this.timed("list", async () => {
       try {
-        const needsCompose =
-          filters.trial !== undefined ||
-          Boolean(filters.renewalFrom) ||
-          Boolean(filters.renewalTo);
-
-        if (needsCompose) {
-          return this.search(filters, page);
-        }
-
-        return await this.subscriptions.paginate({
-          ...toPaginateOptions(page, "started_at"),
-          filters: {
-            status: filters.status,
-            billing_frequency: filters.billingFrequency,
-            product_id: filters.productId,
-            customer_id: filters.customerId,
-          },
+        const pageOpts = toPaginateOptions(page, "started_at");
+        return await this.subscriptions.paginateFiltered({
+          status: filters.status,
+          billingFrequency: filters.billingFrequency,
+          productId: filters.productId,
+          customerId: filters.customerId,
+          trial: filters.trial,
+          renewalFrom: filters.renewalFrom,
+          renewalTo: filters.renewalTo,
+          ...pageOpts,
         });
       } catch (error) {
         this.mapRepositoryError(error, "list");

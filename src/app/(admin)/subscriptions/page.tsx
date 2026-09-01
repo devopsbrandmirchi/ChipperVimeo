@@ -1,71 +1,142 @@
-import Link from "next/link";
+import { Suspense } from "react";
 
-import { ErrorCard, ModulePlaceholder, StatusChip } from "@/components/common/feedback";
+import { ErrorCard, LoadingTable } from "@/components/common/feedback";
+import {
+  SubscriptionFilters,
+  SubscriptionsTable,
+} from "@/components/subscriptions/SubscriptionsTable";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Button } from "@/components/ui/button";
 import { ApiClientError } from "@/lib/api/errors";
 import { apiGetServer } from "@/lib/api/server";
-import { formatDate } from "@/lib/utils";
 import type { Subscription } from "@/types/database";
 
-export default async function SubscriptionsPage() {
-  let preview: Subscription[] = [];
-  let total = 0;
-  let errorMessage: string | null = null;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function first(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+async function loadSubscriptions(searchParams: SearchParams) {
+  const sp = await searchParams;
+  const page = first(sp.page) ?? "1";
+  const pageSize = first(sp.pageSize) ?? "25";
+  const status = first(sp.status);
+  const billingFrequency = first(sp.billingFrequency);
+  const trial = first(sp.trial);
+  const renewalFrom = first(sp.renewalFrom);
+  const renewalTo = first(sp.renewalTo);
+  const customerId = first(sp.customerId);
+  const productId = first(sp.productId);
+  const sort = first(sp.sort);
+  const direction = first(sp.direction);
+
+  const result = await apiGetServer<Subscription[]>("/subscriptions", {
+    page,
+    pageSize,
+    status,
+    billingFrequency,
+    trial,
+    renewalFrom,
+    renewalTo,
+    customerId,
+    productId,
+    sort,
+    direction,
+  });
+
+  return {
+    data: result.data,
+    page: result.meta?.page ?? Number(page),
+    totalPages: result.meta?.totalPages ?? 1,
+    total: result.meta?.total ?? result.data.length,
+    query: {
+      status,
+      billingFrequency,
+      trial,
+      renewalFrom,
+      renewalTo,
+      customerId,
+      productId,
+      sort,
+      direction,
+      pageSize,
+    },
+  };
+}
+
+async function SubscriptionsResults({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  let payload: Awaited<ReturnType<typeof loadSubscriptions>> | null = null;
+  let loadError: string | null = null;
 
   try {
-    const result = await apiGetServer<Subscription[]>("/subscriptions", {
-      page: 1,
-      pageSize: 5,
-    });
-    preview = result.data;
-    total = result.meta?.total ?? result.data.length;
+    payload = await loadSubscriptions(searchParams);
   } catch (error) {
-    errorMessage =
+    loadError =
       error instanceof ApiClientError
         ? error.message
         : error instanceof Error
           ? error.message
-          : "Failed to load";
+          : "Failed to load subscriptions";
   }
+
+  if (!payload) {
+    return (
+      <ErrorCard
+        title="Unable to load subscriptions"
+        message={loadError ?? "Request failed"}
+      />
+    );
+  }
+
+  return (
+    <SubscriptionsTable
+      data={payload.data}
+      page={payload.page}
+      totalPages={payload.totalPages}
+      total={payload.total}
+      query={payload.query}
+    />
+  );
+}
+
+export default async function SubscriptionsPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const sp = await searchParams;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Subscriptions"
-        description="Subscription management UI expands in a later phase."
+        description="Browse and filter subscriptions from the normalized store."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Subscriptions" },
         ]}
       />
-      <ModulePlaceholder
-        title="Layout ready"
-        description={`Connected to GET /api/v1/subscriptions. Showing a live preview of ${total} total subscription(s). Full filters and detail views ship later.`}
-      >
-        {errorMessage ? (
-          <ErrorCard title="Preview unavailable" message={errorMessage} />
-        ) : preview.length === 0 ? (
-          <p className="text-sm text-[var(--muted-foreground)]">No subscriptions yet.</p>
-        ) : (
-          <ul className="divide-y divide-[var(--border)]">
-            {preview.map((s) => (
-              <li
-                key={s.id}
-                className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
-              >
-                <StatusChip status={s.status} />
-                <span className="text-[var(--muted-foreground)]">
-                  {s.billing_frequency ?? "—"} · started {formatDate(s.started_at)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <Button variant="outline" size="sm" asChild className="mt-4">
-          <Link href="/customers">Browse via customers</Link>
-        </Button>
-      </ModulePlaceholder>
+      <Suspense fallback={null}>
+        <SubscriptionFilters
+          initial={{
+            status: first(sp.status),
+            billingFrequency: first(sp.billingFrequency),
+            trial: first(sp.trial),
+            renewalFrom: first(sp.renewalFrom),
+            renewalTo: first(sp.renewalTo),
+            customerId: first(sp.customerId),
+            productId: first(sp.productId),
+          }}
+        />
+      </Suspense>
+      <Suspense fallback={<LoadingTable />}>
+        <SubscriptionsResults searchParams={searchParams} />
+      </Suspense>
     </div>
   );
 }

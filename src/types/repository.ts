@@ -50,6 +50,16 @@ export type SubscriptionSearchOptions = {
   limit?: number;
 };
 
+export type SubscriptionListFilterOptions = {
+  status?: string;
+  billingFrequency?: string;
+  productId?: string;
+  customerId?: string;
+  trial?: boolean;
+  renewalFrom?: string;
+  renewalTo?: string;
+} & PaginateOptions;
+
 export type DateRangeOptions = {
   from: string;
   to: string;

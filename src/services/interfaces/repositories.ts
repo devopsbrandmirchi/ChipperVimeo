@@ -22,6 +22,7 @@ import type {
   PaginateOptions,
   PaginatedResult,
   ProductSearchOptions,
+  SubscriptionListFilterOptions,
   SubscriptionSearchOptions,
 } from "@/types/repository";
 import type { VottEvent, VottEventFilters } from "@/types/vimeo";
@@ -81,6 +82,9 @@ export interface ISubscriptionRepository {
   ): Promise<number>;
   search(options: SubscriptionSearchOptions): Promise<Subscription[]>;
   paginate(opts?: PaginateOptions): Promise<PaginatedResult<Subscription>>;
+  paginateFiltered(
+    opts?: SubscriptionListFilterOptions,
+  ): Promise<PaginatedResult<Subscription>>;
   findAll(options?: {
     limit?: number;
     sortBy?: string;
