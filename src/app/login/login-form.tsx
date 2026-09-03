@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff } from "lucide-react";
@@ -14,10 +14,12 @@ import {
 } from "@/auth/types/schemas";
 
 export function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const {
     register,
@@ -32,6 +34,8 @@ export function LoginForm() {
     },
   });
 
+  const busy = isSubmitting || redirecting;
+
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
     try {
@@ -45,10 +49,13 @@ export function LoginForm() {
         next && next.startsWith("/") && !next.startsWith("//")
           ? next
           : "/dashboard";
-      // Hard navigate once: avoids router.replace + refresh double-fetching
-      // the heavy dashboard RSC while the button stays on "Signing in…".
-      window.location.assign(safeNext);
+      // Soft navigate so the shell streams immediately; AuthProvider already
+      // has the session (avoids a full document reload of heavy RSC work).
+      setRedirecting(true);
+      router.replace(safeNext);
+      router.refresh();
     } catch (error) {
+      setRedirecting(false);
       setFormError(
         error instanceof Error ? error.message : "Unable to sign in",
       );
@@ -68,7 +75,8 @@ export function LoginForm() {
           id="email"
           type="email"
           autoComplete="email"
-          className="h-11 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+          disabled={busy}
+          className="h-11 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none ring-zinc-400 focus:ring-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
           {...register("email")}
         />
         {errors.email ? (
@@ -99,13 +107,15 @@ export function LoginForm() {
             id="password"
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
-            className="h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pr-11 pl-3 text-sm text-zinc-900 outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            disabled={busy}
+            className="h-11 w-full rounded-lg border border-zinc-300 bg-white py-2 pr-11 pl-3 text-sm text-zinc-900 outline-none ring-zinc-400 focus:ring-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
             {...register("password")}
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            disabled={busy}
+            className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-60 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
             aria-label={showPassword ? "Hide password" : "Show password"}
             aria-pressed={showPassword}
           >
@@ -127,6 +137,7 @@ export function LoginForm() {
         <input
           type="checkbox"
           className="size-4 rounded border-zinc-300 dark:border-zinc-600"
+          disabled={busy}
           {...register("rememberMe")}
         />
         Remember me
@@ -143,10 +154,14 @@ export function LoginForm() {
 
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={busy}
         className="h-11 rounded-lg bg-zinc-900 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
       >
-        {isSubmitting ? "Signing in…" : "Sign in"}
+        {redirecting
+          ? "Opening dashboard…"
+          : isSubmitting
+            ? "Signing in…"
+            : "Sign in"}
       </button>
     </form>
   );

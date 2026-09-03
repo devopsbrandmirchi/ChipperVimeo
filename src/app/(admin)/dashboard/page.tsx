@@ -40,7 +40,6 @@ function parsePreset(value: string | undefined): MetricsPreset {
 }
 
 function shortDate(iso: string): string {
-  // YYYY-MM-DD → MM-DD for denser chart axes
   return iso.length >= 10 ? iso.slice(5, 10) : iso;
 }
 
@@ -54,6 +53,17 @@ async function safeGet<T>(
   } catch {
     return null;
   }
+}
+
+function SectionFallback({ label }: { label: string }) {
+  return (
+    <StatCard title={label}>
+      <div className="flex items-center gap-2 py-8 text-sm text-[var(--muted-foreground)]">
+        <LoadingSpinner />
+        Loading…
+      </div>
+    </StatCard>
+  );
 }
 
 async function DashboardGainLoss({
@@ -105,68 +115,42 @@ async function DashboardGainLoss({
   }
 }
 
-function GainLossFallback() {
-  return (
-    <StatCard title="Metrics">
-      <div className="flex items-center gap-2 py-8 text-sm text-[var(--muted-foreground)]">
-        <LoadingSpinner />
-        Loading gain / loss metrics…
-      </div>
-    </StatCard>
-  );
-}
-
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
-  const sp = await searchParams;
-  const presetParam = parsePreset(first(sp.preset));
-  const startDate = first(sp.startDate);
-  const endDate = first(sp.endDate);
-  const range = resolveSubscriptionMetricsRange({
-    preset: startDate || endDate ? "custom" : presetParam,
-    startDate,
-    endDate,
-  });
-
-  let dashboard: DashboardResponse | null = null;
-  let loadError: string | null = null;
-
+async function ExecutiveSnapshot() {
   try {
     const dashboardRes = await apiGetServer<DashboardResponse>(
       "/analytics/dashboard",
     );
-    dashboard = dashboardRes.data;
+    return (
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">
+          Executive snapshot
+        </h2>
+        <DashboardMetrics dashboard={dashboardRes.data} />
+      </section>
+    );
   } catch (error) {
-    loadError =
+    const message =
       error instanceof ApiClientError
         ? error.message
         : error instanceof Error
           ? error.message
           : "Failed to load dashboard";
-  }
-
-  if (loadError || !dashboard) {
     return (
-      <div className="space-y-6">
-        <PageHeader title="Dashboard" breadcrumbs={[{ label: "Dashboard" }]} />
-        <RefreshErrorCard
-          title="Unable to load dashboard"
-          message={loadError ?? "Missing analytics data"}
-        />
-      </div>
+      <RefreshErrorCard
+        title="Unable to load dashboard snapshot"
+        message={message}
+      />
     );
   }
+}
 
+async function DashboardChartsSection() {
   const [daily, countries, platforms, products, gainLossLast30] =
     await Promise.all([
       safeGet<DailyAnalyticsResponse>("/analytics/daily"),
       safeGet<CountryAnalyticsResponse>("/analytics/countries"),
       safeGet<PlatformAnalyticsResponse>("/analytics/platforms"),
       safeGet<ProductAnalyticsResponse>("/analytics/products"),
-      // Fallback when mv_daily_metrics / daily_* snapshots are empty.
       safeGet<SubscriptionMetricsResponse>("/analytics/subscription-metrics", {
         preset: "last30",
       }),
@@ -242,6 +226,51 @@ export default async function DashboardPage({
         : null;
 
   return (
+    <DashboardCharts
+      customerGrowth={customerGrowth}
+      revenueTrend={revenueTrend}
+      subscriptionGrowth={subscriptionGrowth}
+      platforms={platformPoints}
+      countries={countryPoints}
+      topProducts={productPoints}
+      notes={{
+        customers: usingDailyCustomer
+          ? `Last 30 UTC days from ${dailySourceNote}. Values = new customers / day.`
+          : customerGrowth.length > 0
+            ? "Fallback: last 30 UTC days from subscription_events (unique customers gain / day). Fill analytics.mv_daily_metrics for true new-customer series."
+            : "No series yet. Run in Supabase: select analytics.refresh_daily_metrics();",
+        revenue: usingDailyRevenue
+          ? `Last 30 UTC days from ${dailySourceNote}. Values = successful payment revenue ($).`
+          : "No revenue series yet — analytics.mv_daily_metrics is empty. Run: select analytics.refresh_daily_metrics();",
+        subscriptions: usingDailySubs
+          ? `Last 30 UTC days from ${dailySourceNote}. Values = net subscription growth / day.`
+          : subscriptionGrowth.length > 0
+            ? "Fallback: last 30 UTC days from subscription_events (subscription gain − loss / day)."
+            : "No series yet. Run in Supabase: select analytics.refresh_daily_metrics();",
+        platforms: platforms?.note ?? "Open subscribers by platform (top 8).",
+        countries: countries?.note ?? "Open subscribers by country (top 8).",
+        products: "Open subscribers by product (top 8).",
+      }}
+    />
+  );
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const sp = await searchParams;
+  const presetParam = parsePreset(first(sp.preset));
+  const startDate = first(sp.startDate);
+  const endDate = first(sp.endDate);
+  const range = resolveSubscriptionMetricsRange({
+    preset: startDate || endDate ? "custom" : presetParam,
+    startDate,
+    endDate,
+  });
+
+  return (
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
@@ -254,7 +283,7 @@ export default async function DashboardPage({
           startDate={range.startDate}
           endDate={range.endDate}
         />
-        <Suspense fallback={<GainLossFallback />}>
+        <Suspense fallback={<SectionFallback label="Metrics" />}>
           <DashboardGainLoss
             preset={presetParam}
             startDate={startDate}
@@ -262,39 +291,12 @@ export default async function DashboardPage({
           />
         </Suspense>
       </section>
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold tracking-tight">
-          Executive snapshot
-        </h2>
-        <DashboardMetrics dashboard={dashboard} />
-      </section>
-      <DashboardCharts
-        customerGrowth={customerGrowth}
-        revenueTrend={revenueTrend}
-        subscriptionGrowth={subscriptionGrowth}
-        platforms={platformPoints}
-        countries={countryPoints}
-        topProducts={productPoints}
-        notes={{
-          customers: usingDailyCustomer
-            ? `Last 30 UTC days from ${dailySourceNote}. Values = new customers / day.`
-            : customerGrowth.length > 0
-              ? "Fallback: last 30 UTC days from subscription_events (unique customers gain / day). Fill analytics.mv_daily_metrics for true new-customer series."
-              : "No series yet. Run in Supabase: select analytics.refresh_daily_metrics();",
-          revenue: usingDailyRevenue
-            ? `Last 30 UTC days from ${dailySourceNote}. Values = successful payment revenue ($).`
-            : "No revenue series yet — analytics.mv_daily_metrics is empty. Run: select analytics.refresh_daily_metrics();",
-          subscriptions: usingDailySubs
-            ? `Last 30 UTC days from ${dailySourceNote}. Values = net subscription growth / day.`
-            : subscriptionGrowth.length > 0
-              ? "Fallback: last 30 UTC days from subscription_events (subscription gain − loss / day)."
-              : "No series yet. Run in Supabase: select analytics.refresh_daily_metrics();",
-          platforms:
-            platforms?.note ?? "Open subscribers by platform (top 8).",
-          countries: countries?.note ?? "Open subscribers by country (top 8).",
-          products: "Open subscribers by product (top 8).",
-        }}
-      />
+      <Suspense fallback={<SectionFallback label="Executive snapshot" />}>
+        <ExecutiveSnapshot />
+      </Suspense>
+      <Suspense fallback={<SectionFallback label="Charts" />}>
+        <DashboardChartsSection />
+      </Suspense>
     </div>
   );
 }
