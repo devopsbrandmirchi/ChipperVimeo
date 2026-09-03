@@ -149,18 +149,20 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
   async getDashboard(): Promise<DashboardResponse> {
     return this.timed("getDashboard", async () => {
       try {
-        const row = await this.repo.getDashboard();
-        // Do not block page load on full MV refresh (often times out on large DBs).
-        // Always overlay live UTC "today" KPIs so today cards match the current day.
-        let todayLive = null;
-        try {
-          todayLive = await this.repo.getDashboardTodayKpis();
-        } catch (error) {
-          this.logger.warn("Live today KPIs unavailable; using snapshot today fields", {
-            action: "dashboard_today_live_failed",
-            error: error instanceof Error ? error.message : "unknown",
-          });
-        }
+        // MV snapshot + live today KPIs in parallel (today must not wait on MV).
+        const [row, todayLive] = await Promise.all([
+          this.repo.getDashboard(),
+          this.repo.getDashboardTodayKpis().catch((error) => {
+            this.logger.warn(
+              "Live today KPIs unavailable; using snapshot today fields",
+              {
+                action: "dashboard_today_live_failed",
+                error: error instanceof Error ? error.message : "unknown",
+              },
+            );
+            return null;
+          }),
+        ]);
         return mapDashboard(row, todayLive);
       } catch (error) {
         this.mapRepositoryError(error, "getDashboard");
@@ -335,11 +337,11 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
           const rows = await this.dailyRepo.listTrialMetrics(filters);
           return mapDailyTrialSeries(rows, filters.groupBy ?? "day");
         }
-        const [trial, dashboard] = await Promise.all([
+        const [trial, row] = await Promise.all([
           this.repo.getTrialMetrics(),
-          this.getDashboard(),
+          this.repo.getDashboard(),
         ]);
-        return mapTrials(trial, dashboard.trialConversionPct);
+        return mapTrials(trial, mapDashboard(row).trialConversionPct);
       } catch (error) {
         this.mapRepositoryError(error, "getTrialAnalytics");
       }
@@ -388,29 +390,37 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
     return this.timed("getSubscriptionGainLossMetrics", async () => {
       try {
         const range = resolveSubscriptionMetricsRange(filters);
-        const [grouped, dayCountryRows] = await Promise.all([
-          this.subscriptionMetricsRepo.listMetricsGrouped({
-            startDate: range.startDate,
-            endDate: range.endDate,
-            platform: filters.platform,
-            country: filters.country,
-            productId: filters.productId,
-          }),
-          // Soft-fail: day×country can timeout on large ranges; keep main KPIs.
-          this.subscriptionMetricsRepo
-            .listDayCountryMetrics({
-              startDate: range.startDate,
-              endDate: range.endDate,
-              country: filters.country,
-            })
-            .catch((error) => {
-              this.logger.warn("Day-country metrics unavailable", {
-                error: error instanceof Error ? error.message : "unknown",
+        const singleDay = range.startDate === range.endDate;
+        const groupedPromise = this.subscriptionMetricsRepo.listMetricsGrouped({
+          startDate: range.startDate,
+          endDate: range.endDate,
+          platform: filters.platform,
+          country: filters.country,
+          productId: filters.productId,
+        });
+
+        // Day×country is expensive and not needed for default today/yesterday cards.
+        // Soft-fail / skip keeps main KPIs fast.
+        const dayCountryPromise = singleDay
+          ? Promise.resolve([])
+          : this.subscriptionMetricsRepo
+              .listDayCountryMetrics({
                 startDate: range.startDate,
                 endDate: range.endDate,
+                country: filters.country,
+              })
+              .catch((error) => {
+                this.logger.warn("Day-country metrics unavailable", {
+                  error: error instanceof Error ? error.message : "unknown",
+                  startDate: range.startDate,
+                  endDate: range.endDate,
+                });
+                return [];
               });
-              return [];
-            }),
+
+        const [grouped, dayCountryRows] = await Promise.all([
+          groupedPromise,
+          dayCountryPromise,
         ]);
 
         return mapSubscriptionMetricsResponse(grouped, dayCountryRows, range);
@@ -423,11 +433,13 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
   async getChurnAnalytics(): Promise<ChurnAnalyticsResponse> {
     return this.timed("getChurnAnalytics", async () => {
       try {
-        const [churn, dashboard] = await Promise.all([
+        // Stock retention from mv_dashboard only — do not re-run live today KPIs.
+        const [churn, row] = await Promise.all([
           this.repo.getChurnMetrics(),
-          this.getDashboard(),
+          this.repo.getDashboard(),
         ]);
-        return mapChurn(churn, dashboard.retentionRatePct);
+        const retention = mapDashboard(row).retentionRatePct;
+        return mapChurn(churn, retention);
       } catch (error) {
         this.mapRepositoryError(error, "getChurnAnalytics");
       }

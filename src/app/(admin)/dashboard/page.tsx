@@ -145,16 +145,12 @@ async function ExecutiveSnapshot() {
 }
 
 async function DashboardChartsSection() {
-  const [daily, countries, platforms, products, gainLossLast30] =
-    await Promise.all([
-      safeGet<DailyAnalyticsResponse>("/analytics/daily"),
-      safeGet<CountryAnalyticsResponse>("/analytics/countries"),
-      safeGet<PlatformAnalyticsResponse>("/analytics/platforms"),
-      safeGet<ProductAnalyticsResponse>("/analytics/products"),
-      safeGet<SubscriptionMetricsResponse>("/analytics/subscription-metrics", {
-        preset: "last30",
-      }),
-    ]);
+  const [daily, countries, platforms, products] = await Promise.all([
+    safeGet<DailyAnalyticsResponse>("/analytics/daily"),
+    safeGet<CountryAnalyticsResponse>("/analytics/countries"),
+    safeGet<PlatformAnalyticsResponse>("/analytics/platforms"),
+    safeGet<ProductAnalyticsResponse>("/analytics/products"),
+  ]);
 
   const dailyCustomerGrowth =
     daily?.customers.map((r) => ({
@@ -174,6 +170,19 @@ async function DashboardChartsSection() {
       value: r.netGrowth,
     })) ?? [];
 
+  const usingDailyCustomer = dailyCustomerGrowth.length > 0;
+  const usingDailyRevenue = dailyRevenueTrend.length > 0;
+  const usingDailySubs = dailySubscriptionGrowth.length > 0;
+
+  // Only hit expensive subscription-metrics last30 when daily MV series are empty.
+  const needGainLossFallback = !usingDailyCustomer || !usingDailySubs;
+  const gainLossLast30 = needGainLossFallback
+    ? await safeGet<SubscriptionMetricsResponse>(
+        "/analytics/subscription-metrics",
+        { preset: "last30" },
+      )
+    : null;
+
   const gainLossSeries = [...(gainLossLast30?.series ?? [])].sort((a, b) =>
     (a.reportDate ?? a.key).localeCompare(b.reportDate ?? b.key),
   );
@@ -187,10 +196,6 @@ async function DashboardChartsSection() {
     name: shortDate(r.reportDate ?? r.key),
     value: r.subscriptionGain - r.subscriptionLoss,
   }));
-
-  const usingDailyCustomer = dailyCustomerGrowth.length > 0;
-  const usingDailyRevenue = dailyRevenueTrend.length > 0;
-  const usingDailySubs = dailySubscriptionGrowth.length > 0;
 
   const customerGrowth = usingDailyCustomer
     ? dailyCustomerGrowth
