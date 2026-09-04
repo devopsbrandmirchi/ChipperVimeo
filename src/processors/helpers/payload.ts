@@ -146,6 +146,74 @@ export function priceToCents(price: number | null | undefined): number | null {
   return Math.round(price);
 }
 
+function moneyCents(money: { cents?: number } | null | undefined): number | null {
+  if (typeof money?.cents !== "number" || !Number.isFinite(money.cents)) {
+    return null;
+  }
+  return Math.round(money.cents);
+}
+
+function isYearlyFrequency(frequency: string | null | undefined): boolean {
+  const f = (frequency ?? "").toLowerCase();
+  return (
+    f.includes("year") ||
+    f.includes("annual") ||
+    f === "yr" ||
+    f === "y"
+  );
+}
+
+/**
+ * Pick cents from an embedded Vimeo product price object.
+ * Subscription products use monthly/yearly; TVOD uses purchase/rental.
+ */
+export function vimeoProductPriceCents(
+  product: VimeoProduct | null | undefined,
+  frequency?: string | null,
+): number | null {
+  const price = product?.price;
+  if (!price) return null;
+
+  const monthly = moneyCents(price.monthly);
+  const yearly = moneyCents(price.yearly);
+  const purchase = moneyCents(price.purchase);
+  const rental = moneyCents(price.rental);
+
+  if (isYearlyFrequency(frequency)) {
+    return yearly ?? monthly ?? purchase ?? rental;
+  }
+  return monthly ?? yearly ?? purchase ?? rental;
+}
+
+/**
+ * Payment/subscription amount: customer.subscription_price first, then
+ * embedded product catalog price for the billing frequency.
+ */
+export function resolveVimeoAmountCents(opts: {
+  subscriptionPrice?: number | null;
+  frequency?: string | null;
+  product?: VimeoProduct | null;
+  fallbackCents?: number | null;
+}): number | null {
+  return (
+    priceToCents(opts.subscriptionPrice) ??
+    opts.fallbackCents ??
+    vimeoProductPriceCents(opts.product, opts.frequency)
+  );
+}
+
+export function vimeoProductCurrency(
+  product: VimeoProduct | null | undefined,
+  frequency?: string | null,
+): string | null {
+  const price = product?.price;
+  if (!price) return null;
+  const pick = isYearlyFrequency(frequency)
+    ? price.yearly ?? price.monthly ?? price.purchase ?? price.rental
+    : price.monthly ?? price.yearly ?? price.purchase ?? price.rental;
+  return stringOrNull(pick?.currency);
+}
+
 export function stringOrNull(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }

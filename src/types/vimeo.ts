@@ -43,6 +43,9 @@ export type VimeoProduct = {
   updated_at?: string | null;
   types?: string[];
   price?: {
+    monthly?: VimeoMoney;
+    yearly?: VimeoMoney;
+    /** TVOD / one-time */
     purchase?: VimeoMoney;
     rental?: VimeoMoney;
   };

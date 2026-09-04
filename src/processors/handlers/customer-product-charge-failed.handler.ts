@@ -2,7 +2,12 @@ import type {
   EventHandler,
   HandlerContext,
 } from "@/processors/types/event-handler.interface";
-import { extractPayload, priceToCents, stringOrNull } from "@/processors/helpers/payload";
+import {
+  extractPayload,
+  resolveVimeoAmountCents,
+  stringOrNull,
+  vimeoProductCurrency,
+} from "@/processors/helpers/payload";
 import {
   toLifecycleInput,
   upsertCustomerAndProduct,
@@ -26,13 +31,26 @@ export class CustomerProductChargeFailedHandler implements EventHandler {
       { status: extracted.customer.subscription_status ?? "charge_failed" },
     );
 
+    const frequency =
+      extracted.customer.subscription_frequency ??
+      subscription.billing_frequency;
+    const amountCents = resolveVimeoAmountCents({
+      subscriptionPrice: extracted.customer.subscription_price,
+      frequency,
+      product: extracted.product,
+      fallbackCents: subscription.price_cents,
+    });
+
     await ctx.payments.recordFailed({
       customerId: customer.id,
       subscriptionId: subscription.id,
       productId: product.id,
       vottEventId: event.id,
-      amountCents: priceToCents(extracted.customer.subscription_price),
-      currency: product.currency,
+      amountCents,
+      currency:
+        product.currency ??
+        vimeoProductCurrency(extracted.product, frequency) ??
+        subscription.currency,
       paymentDate:
         stringOrNull(extracted.customer.last_payment_date) ??
         event.event_created_at,

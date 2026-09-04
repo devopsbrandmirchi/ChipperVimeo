@@ -26,12 +26,23 @@ export class ProductService extends BaseService implements IProductService {
   ): Promise<Product> {
     return this.timed("upsertFromVimeoProduct", async () => {
       try {
-        const purchase = product.price?.purchase;
-        const rental = product.price?.rental;
+        const price = product.price;
+        const monthly =
+          typeof price?.monthly?.cents === "number"
+            ? price.monthly
+            : typeof price?.purchase?.cents === "number"
+              ? price.purchase
+              : null;
+        const yearly =
+          typeof price?.yearly?.cents === "number"
+            ? price.yearly
+            : typeof price?.rental?.cents === "number"
+              ? price.rental
+              : null;
         const monthlyCents =
-          typeof purchase?.cents === "number" ? purchase.cents : null;
+          typeof monthly?.cents === "number" ? monthly.cents : null;
         const yearlyCents =
-          typeof rental?.cents === "number" ? rental.cents : null;
+          typeof yearly?.cents === "number" ? yearly.cents : null;
 
         const activeRaw = product.is_active;
         const active =
@@ -46,12 +57,12 @@ export class ProductService extends BaseService implements IProductService {
           name: stringOrNull(product.name),
           description: stringOrNull(product.description),
           currency:
-            stringOrNull(purchase?.currency) ??
-            stringOrNull(rental?.currency),
+            stringOrNull(monthly?.currency) ??
+            stringOrNull(yearly?.currency),
           monthly_price_cents: monthlyCents,
           yearly_price_cents: yearlyCents,
-          monthly_price_formatted: stringOrNull(purchase?.formatted),
-          yearly_price_formatted: stringOrNull(rental?.formatted),
+          monthly_price_formatted: stringOrNull(monthly?.formatted),
+          yearly_price_formatted: stringOrNull(yearly?.formatted),
           active,
           product_created_at: stringOrNull(product.created_at),
           product_updated_at: stringOrNull(product.updated_at),

@@ -2,7 +2,7 @@ import type { Logger } from "@/processors/logger/logger";
 import {
   asJson,
   boolOrNull,
-  priceToCents,
+  resolveVimeoAmountCents,
   stringOrNull,
 } from "@/processors/helpers/payload";
 import { BaseService } from "@/services/shared/base.service";
@@ -240,7 +240,7 @@ export class SubscriptionService
     patch: StatePatch,
   ): Promise<SubscriptionMutationResult> {
     const { customer, product, vimeoCustomer, eventCreatedAt } = input;
-    const snapshot = this.snapshotFromCustomer(vimeoCustomer, patch);
+    const snapshot = this.snapshotFromCustomer(vimeoCustomer, patch, product);
     const now = this.coalesceTimestamp(eventCreatedAt);
 
     try {
@@ -257,8 +257,9 @@ export class SubscriptionService
         subscription = await this.subscriptions.update(current.id, {
           status: snapshot.status,
           billing_frequency: snapshot.billing_frequency,
-          price_cents: snapshot.price_cents,
-          currency: current.currency,
+          // Prefer live price; keep prior price when Vimeo omits subscription_price.
+          price_cents: snapshot.price_cents ?? current.price_cents,
+          currency: snapshot.currency ?? current.currency,
           last_payment_date: snapshot.last_payment_date,
           next_payment_date: snapshot.next_payment_date,
           renewal_date: snapshot.next_payment_date,
@@ -298,6 +299,7 @@ export class SubscriptionService
           status: snapshot.status,
           billing_frequency: snapshot.billing_frequency,
           price_cents: snapshot.price_cents,
+          currency: snapshot.currency,
           started_at: now,
           last_payment_date: snapshot.last_payment_date,
           next_payment_date: snapshot.next_payment_date,
@@ -345,11 +347,28 @@ export class SubscriptionService
   private snapshotFromCustomer(
     customer: VimeoCustomer,
     patch: StatePatch,
+    product: { monthly_price_cents: number | null; yearly_price_cents: number | null; currency: string | null },
   ) {
+    const frequency = stringOrNull(customer.subscription_frequency);
+    const freq = (frequency ?? "").toLowerCase();
+    const yearly =
+      freq.includes("year") ||
+      freq.includes("annual") ||
+      freq === "yr" ||
+      freq === "y";
+    const catalogCents = yearly
+      ? product.yearly_price_cents ?? product.monthly_price_cents
+      : product.monthly_price_cents ?? product.yearly_price_cents;
+
     return {
       status: patch.status ?? stringOrNull(customer.subscription_status),
-      billing_frequency: stringOrNull(customer.subscription_frequency),
-      price_cents: priceToCents(customer.subscription_price),
+      billing_frequency: frequency,
+      price_cents: resolveVimeoAmountCents({
+        subscriptionPrice: customer.subscription_price,
+        frequency,
+        fallbackCents: catalogCents,
+      }),
+      currency: product.currency,
       last_payment_date: stringOrNull(customer.last_payment_date),
       next_payment_date: stringOrNull(customer.next_payment_date),
       pause_end_date: patch.clearPause
