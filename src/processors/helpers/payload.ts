@@ -135,10 +135,15 @@ export function asJson(value: unknown): Json | null {
   return value as Json;
 }
 
-/** Convert dollars (number) to integer cents when Vimeo sends float price. */
+/**
+ * Normalize Vimeo OTT money fields to integer cents.
+ * `subscription_price` is already in cents (e.g. 599 = $5.99) — do not * 100.
+ * Only multiply when the value looks like dollars with a fractional part (e.g. 5.99).
+ */
 export function priceToCents(price: number | null | undefined): number | null {
   if (typeof price !== "number" || !Number.isFinite(price)) return null;
-  return Math.round(price * 100);
+  if (!Number.isInteger(price)) return Math.round(price * 100);
+  return Math.round(price);
 }
 
 export function stringOrNull(value: unknown): string | null {
