@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { z } from "zod";
 
 import { CohortMatrixLazy } from "@/components/analytics/CohortMatrixLazy";
+import { CohortTrialConversionLazy } from "@/components/analytics/CohortTrialConversionLazy";
+import { CustomerAnalyticsPanel } from "@/components/analytics/CustomerAnalyticsPanel";
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { GainLossToolbar } from "@/components/analytics/GainLossToolbar";
 import { SubscriptionHealthMetrics } from "@/components/analytics/SubscriptionHealthMetrics";
@@ -19,8 +21,10 @@ import { resolveSubscriptionMetricsRange } from "@/modules/analytics/mappers/sub
 import type {
   ChurnAnalyticsResponse,
   CountryAnalyticsResponse,
+  CustomerAnalyticsResponse,
   DailyAnalyticsResponse,
   DashboardResponse,
+  LTVResponse,
   PlatformAnalyticsResponse,
   ProductAnalyticsResponse,
   SubscriptionMetricsResponse,
@@ -261,6 +265,22 @@ async function DashboardChartsSection() {
   );
 }
 
+async function CustomerAnalyticsSection() {
+  const [customers, ltv] = await Promise.all([
+    safeGet<CustomerAnalyticsResponse>("/analytics/customers"),
+    safeGet<LTVResponse>("/analytics/ltv"),
+  ]);
+  if (!customers) {
+    return (
+      <RefreshErrorCard
+        title="Unable to load customer analytics"
+        message="GET /analytics/customers failed. Refresh MV customer metrics."
+      />
+    );
+  }
+  return <CustomerAnalyticsPanel customers={customers} ltv={ltv} />;
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -284,6 +304,7 @@ export default async function DashboardPage({
         breadcrumbs={[{ label: "Dashboard" }]}
       />
       <CohortMatrixLazy />
+      <CohortTrialConversionLazy />
       <section className="space-y-4">
         <GainLossToolbar
           preset={range.preset}
@@ -300,6 +321,9 @@ export default async function DashboardPage({
       </section>
       <Suspense fallback={<SectionFallback label="Executive snapshot" />}>
         <ExecutiveSnapshot />
+      </Suspense>
+      <Suspense fallback={<SectionFallback label="Customer analytics" />}>
+        <CustomerAnalyticsSection />
       </Suspense>
       <Suspense fallback={<SectionFallback label="Charts" />}>
         <DashboardChartsSection />

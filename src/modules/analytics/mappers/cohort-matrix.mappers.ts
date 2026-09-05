@@ -139,12 +139,29 @@ export function mapCohortMatrixResponse(
     rows: buildRows(churn),
   };
 
+  const retentionRows: CohortMatrixRow[] = churnBlock.rows.map((row) => ({
+    ...row,
+    values: row.values.map((v) => (v == null ? null : round4(100 - v))),
+  }));
+
+  const retentionBlock: CohortMatrixBlock = {
+    title: "Retention",
+    unit: "percent",
+    columnLabels,
+    rows: retentionRows,
+  };
+
   return {
     from,
     to,
     horizon,
-    note: "Cohort = customer first seen (UTC). Month 1 = cohort month. Churn % = customers with any cancelled_at by end of relative month ÷ cohort size. Served from analytics.cohort_matrix_cache (refresh: select analytics.refresh_cohort_matrix()).",
+    note: "Cohort = customer first seen (UTC). Month 1 = cohort month. Churn % = customers with any cancelled_at by end of relative month ÷ cohort size. Retention % = 100 − churn. Served from analytics.cohort_matrix_cache (refresh: select analytics.refresh_cohort_matrix()).",
     revenue: revenueBlock,
     churn: churnBlock,
+    retention: retentionBlock,
   };
+}
+
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
 }

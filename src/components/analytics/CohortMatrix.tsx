@@ -82,17 +82,24 @@ export function CohortMatrix({ data }: { data: CohortMatrixResponse }) {
     <section className="space-y-4">
       <div className="space-y-1">
         <h2 className="text-lg font-semibold tracking-tight">
-          Cohort revenue & churn
+          Cohort revenue, churn &amp; retention
         </h2>
         <p className="text-sm text-[var(--muted-foreground)]">{data.note}</p>
         <p className="text-xs text-[var(--muted-foreground)]">
           Cohorts {data.from.slice(0, 7)} → {data.to.slice(0, 7)} · horizon{" "}
-          {data.horizon} months
+          {data.horizon} months ·{" "}
+          <a
+            className="underline underline-offset-2"
+            href={`/api/v1/analytics/cohorts/export?from=${data.from.slice(0, 7)}&to=${data.to.slice(0, 7)}&horizon=${data.horizon}`}
+          >
+            Export CSV
+          </a>
         </p>
       </div>
       <div className="space-y-6">
         <MatrixTable block={data.revenue} />
         <MatrixTable block={data.churn} />
+        <MatrixTable block={data.retention} />
       </div>
     </section>
   );

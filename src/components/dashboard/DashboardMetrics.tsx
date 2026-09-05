@@ -55,17 +55,17 @@ export function DashboardMetrics({
         <MetricCard
           title="Active subscribers"
           value={dashboard.activeSubscribers}
-          hint="Open paid subscriptions (distinct customers)"
+          hint="Current · open paid (distinct customers, exclude paused)"
         />
         <MetricCard
           title="Trials"
           value={dashboard.freeTrials}
-          hint="Open free trials only (not ended/converted)"
+          hint="Current · open free trials only"
         />
         <MetricCard
           title="Cancelled"
           value={dashboard.cancelled}
-          hint="Cancelled and not expired (current stock)"
+          hint="Current · cancelled and not expired"
         />
 
         <MetricCard
@@ -78,8 +78,8 @@ export function DashboardMetrics({
           value={dashboard.renewalsToday}
           hint={
             dashboard.todayLive
-              ? "Live · renewal date today (UTC)"
-              : "Subscriptions with renewal date today (UTC)"
+              ? "Live · renew event + succeeded payment (UTC)"
+              : "Renew event + succeeded payment (UTC)"
           }
         />
         <MetricCard
@@ -104,22 +104,41 @@ export function DashboardMetrics({
         <MetricCard
           title="Revenue this month"
           value={money(dashboard.revenueMonthCents)}
-          hint="Successful payments MTD (UTC) · from snapshot"
+          hint="Historical/current mix · successful payments MTD (UTC) · snapshot"
         />
         <MetricCard
           title="Revenue this year"
           value={money(dashboard.revenueYearCents)}
-          hint="Successful payments YTD (UTC) · from snapshot"
+          hint="Historical/current mix · successful payments YTD (UTC) · snapshot"
         />
         <MetricCard
           title="MRR"
           value={money(dashboard.mrrCents)}
-          hint="From open paid subscription MRR · snapshot"
+          hint="Current · open paid subscription MRR · snapshot"
         />
         <MetricCard
           title="ARR"
           value={money(dashboard.arrCents)}
-          hint="MRR × 12 · snapshot"
+          hint="Current · MRR × 12 · snapshot"
+        />
+        <MetricCard
+          title="ARPU"
+          value={money(dashboard.arpuCents)}
+          hint="Current · MRR ÷ active subscribers · snapshot"
+        />
+        <MetricCard
+          title="Period churn (stock proxy)"
+          value={`${dashboard.churnRatePct.toLocaleString("en-US", {
+            maximumFractionDigits: 2,
+          })}%`}
+          hint="Current stock ratio from MV — rebuild daily_* for true prior-day period churn"
+        />
+        <MetricCard
+          title="Period retention (stock proxy)"
+          value={`${dashboard.retentionRatePct.toLocaleString("en-US", {
+            maximumFractionDigits: 2,
+          })}%`}
+          hint="Current · 100 − stock churn proxy"
         />
       </div>
     </div>

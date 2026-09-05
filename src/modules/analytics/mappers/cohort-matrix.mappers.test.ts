@@ -79,6 +79,7 @@ describe("mapCohortMatrixResponse", () => {
 
     expect(mapped.revenue.title).toBe("Revenue");
     expect(mapped.churn.title).toBe("Churn");
+    expect(mapped.retention.title).toBe("Retention");
     expect(mapped.revenue.columnLabels).toEqual([
       "Month 1",
       "Month 2",
@@ -99,6 +100,11 @@ describe("mapCohortMatrixResponse", () => {
     expect(janChurn?.values[0]).toBe(5.5);
     expect(janChurn?.values[1]).toBe(12.25);
     expect(janChurn?.values[5]).toBeNull();
+
+    const janRetention = mapped.retention.rows[0];
+    expect(janRetention?.values[0]).toBe(94.5);
+    expect(janRetention?.values[1]).toBe(87.75);
+    expect(janRetention?.values[5]).toBeNull();
 
     expect(mapped.revenue.rows[1]?.cohortLabel).toBe("February 2026");
     expect(mapped.revenue.rows[1]?.values.every((v) => v == null)).toBe(true);

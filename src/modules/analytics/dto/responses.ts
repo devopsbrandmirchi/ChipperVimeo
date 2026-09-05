@@ -290,4 +290,21 @@ export type CohortMatrixResponse = {
   note: string;
   revenue: CohortMatrixBlock;
   churn: CohortMatrixBlock;
+  /** Retention % = 100 − cumulative cohort churn (same cells). */
+  retention: CohortMatrixBlock;
+};
+
+export type CohortTrialConversionRow = {
+  cohortMonth: string;
+  cohortLabel: string;
+  trialsStarted: number;
+  trialsConverted: number;
+  conversionPct: number;
+};
+
+export type CohortTrialConversionResponse = {
+  from: string;
+  to: string;
+  note: string;
+  rows: CohortTrialConversionRow[];
 };

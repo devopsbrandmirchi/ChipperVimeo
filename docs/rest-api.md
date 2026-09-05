@@ -178,9 +178,14 @@ Two layers in the `analytics` schema — see [`docs/analytics-engine.md`](analyt
 | `GET /api/v1/analytics/payments` | Current or historical payment metrics |
 | `GET /api/v1/analytics/trials` | Current or historical trial metrics |
 | `GET /api/v1/analytics/daily` | Umbrella daily series (default last 30 days) from `daily_*` |
-| `GET /api/v1/analytics/churn` | Churn / retention (MV) |
+| `GET /api/v1/analytics/churn` | Churn / retention (MV stock proxy; period churn lives on `daily_subscription_metrics.churn_rate`) |
 | `GET /api/v1/analytics/mrr` | MRR (+ ARR) |
 | `GET /api/v1/analytics/arr` | ARR (+ MRR) |
+| `GET /api/v1/analytics/ltv` | Avg / median / max LTV + paying customers |
+| `GET /api/v1/analytics/cohorts` | Cohort revenue / churn / retention matrix (`from`/`to`/`horizon`) |
+| `GET /api/v1/analytics/cohorts/export` | CSV of cohort matrix (`analytics:export`) |
+| `GET /api/v1/analytics/cohort-trials` | Cohort trial conversion by `free_trial_start` month |
+| `GET /api/v1/analytics/subscription-metrics` | Phase 9.5 gain/loss from `subscription_events` |
 | `POST /api/v1/analytics/refresh` | ADMIN — refresh MVs (`{ "target": "all" }`) |
 | `POST /api/v1/analytics/daily/build` | ADMIN — `{ "date" }` \| `{ "dateFrom","dateTo" }` \| `{ "mode":"all" }` |
 

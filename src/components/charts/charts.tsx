@@ -57,7 +57,10 @@ function ChartShell({
       {empty ? (
         <EmptyState
           title="No series data yet"
-          description={note ?? "Placeholder analytics — breakdowns arrive in a later phase."}
+          description={
+            note ??
+            "No points for this chart. Refresh daily metrics or widen the date range."
+          }
         />
       ) : (
         <div className={`w-full ${chartClassName}`}>{children}</div>

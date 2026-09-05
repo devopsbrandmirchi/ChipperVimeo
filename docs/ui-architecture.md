@@ -16,14 +16,14 @@ RootLayout (ThemeProvider + AuthProvider + Toaster)
 
 | Route | Depth |
 |-------|--------|
-| `/dashboard` | Full metrics + charts |
+| `/dashboard` | Cohort matrix, trial conversion, gain/loss, executive snapshot, LTV/customers, charts |
 | `/customers` | Production list (filters, sort via URL, pagination) |
 | `/customers/[id]` | Detail: profile, subs, timeline, payments, webhooks |
 | `/webhook-events` | Production table + raw JSON dialog |
 | `/subscriptions` | Production list (filters, pagination) |
 | `/products`, `/products/[id]` | Production catalog list + read-only detail (CSV export) |
 | `/payments`, `/payments/[id]` | Production ledger list + detail (CSV export, enrichment) |
-| `/analytics` | Gain/loss + charts from analytics APIs |
+| `/analytics` | Cohort revenue/churn/retention, trial cohorts, gain/loss, LTV/customers, charts |
 | `/settings` | Profile, theme, health, webhook note, **Users & access** (Phase 11) |
 
 Auth pages (`/login`, password flows, `/access-denied`) stay outside `(admin)`.

@@ -78,4 +78,4 @@ Older copies of `subscription-metrics-validation.md` said Web Subscription Loss 
 | Provide runnable SQL packs + runbook | Rebuild Phase 9.5 gain/loss |
 | Document pass/warn/fail thresholds | Guarantee bit-identical Vimeo match |
 | Point to reprocess tooling | Ship historical catalog import |
-| Sample stock/MRR validation | Implement Phase 12 cohort churn |
+| Sample stock/MRR validation | Phase 12 period churn / cohort depth shipped — re-run worksheets |

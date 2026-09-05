@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { z } from "zod";
 
 import { CohortMatrixLazy } from "@/components/analytics/CohortMatrixLazy";
+import { CohortTrialConversionLazy } from "@/components/analytics/CohortTrialConversionLazy";
+import { CustomerAnalyticsPanel } from "@/components/analytics/CustomerAnalyticsPanel";
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { GainLossToolbar } from "@/components/analytics/GainLossToolbar";
 import { SubscriptionHealthMetrics } from "@/components/analytics/SubscriptionHealthMetrics";
@@ -19,7 +21,9 @@ import type {
   AnalyticsOverview,
   ChurnAnalyticsResponse,
   CountryAnalyticsResponse,
+  CustomerAnalyticsResponse,
   DailyAnalyticsResponse,
+  LTVResponse,
   PlatformAnalyticsResponse,
   ProductAnalyticsResponse,
   SubscriptionMetricsResponse,
@@ -244,6 +248,22 @@ async function AnalyticsChartsSection() {
   );
 }
 
+async function CustomerAnalyticsSection() {
+  const [customers, ltv] = await Promise.all([
+    safeGet<CustomerAnalyticsResponse>("/analytics/customers"),
+    safeGet<LTVResponse>("/analytics/ltv"),
+  ]);
+  if (!customers) {
+    return (
+      <RefreshErrorCard
+        title="Unable to load customer analytics"
+        message="GET /analytics/customers failed. Refresh MV customer metrics."
+      />
+    );
+  }
+  return <CustomerAnalyticsPanel customers={customers} ltv={ltv} />;
+}
+
 function SectionFallback({ label }: { label: string }) {
   return (
     <StatCard title={label}>
@@ -275,15 +295,15 @@ export default async function AnalyticsPage({
     <div className="space-y-6">
       <PageHeader
         title="Analytics"
-        description="Cohort grids, gain/loss from subscription_events, plus chart breakdowns from analytics MVs."
+        description="Cohort grids, gain/loss from subscription_events, customer LTV, plus chart breakdowns from analytics MVs."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Analytics" },
         ]}
       />
 
-      {/* Top of page; client-side so it does not block gain/loss SSR */}
       <CohortMatrixLazy />
+      <CohortTrialConversionLazy />
 
       <section className="space-y-4">
         <GainLossToolbar
@@ -299,6 +319,10 @@ export default async function AnalyticsPage({
           />
         </Suspense>
       </section>
+
+      <Suspense fallback={<SectionFallback label="Customer analytics" />}>
+        <CustomerAnalyticsSection />
+      </Suspense>
 
       <Suspense fallback={<SectionFallback label="Charts" />}>
         <AnalyticsChartsSection />

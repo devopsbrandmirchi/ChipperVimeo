@@ -10,6 +10,7 @@ import type {
   ARRResponse,
   ChurnAnalyticsResponse,
   CohortMatrixResponse,
+  CohortTrialConversionResponse,
   CountryAnalyticsResponse,
   CustomerAnalyticsResponse,
   DailyAnalyticsResponse,
@@ -44,6 +45,10 @@ import {
   mapCohortMatrixResponse,
   resolveCohortMatrixRange,
 } from "@/modules/analytics/mappers/cohort-matrix.mappers";
+import {
+  mapCohortTrialConversion,
+  resolveCohortTrialRange,
+} from "@/modules/analytics/mappers/cohort-trial.mappers";
 import {
   defaultLast30DaysFilters,
   hasHistoricalRange,
@@ -93,6 +98,9 @@ export interface IAnalyticsService {
   getCohortMatrix(
     filters?: CohortMatrixFilters,
   ): Promise<CohortMatrixResponse>;
+  getCohortTrialConversion(
+    filters?: CohortMatrixFilters,
+  ): Promise<CohortTrialConversionResponse>;
   getMrr(): Promise<MRRResponse>;
   getArr(): Promise<ARRResponse>;
   getLtv(): Promise<LTVResponse>;
@@ -465,6 +473,20 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
         return mapCohortMatrixResponse(rows, range);
       } catch (error) {
         this.mapRepositoryError(error, "getCohortMatrix");
+      }
+    });
+  }
+
+  async getCohortTrialConversion(
+    filters: CohortMatrixFilters = { horizon: 6 },
+  ): Promise<CohortTrialConversionResponse> {
+    return this.timed("getCohortTrialConversion", async () => {
+      try {
+        const range = resolveCohortTrialRange(filters);
+        const rows = await this.repo.getCohortTrialConversion(range);
+        return mapCohortTrialConversion(rows, range);
+      } catch (error) {
+        this.mapRepositoryError(error, "getCohortTrialConversion");
       }
     });
   }

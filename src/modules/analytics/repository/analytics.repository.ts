@@ -235,6 +235,32 @@ export class AnalyticsRepository {
     return (data as CohortMatrixDbRow[]) ?? [];
   }
 
+  async getCohortTrialConversion(params: {
+    from: string;
+    to: string;
+  }): Promise<
+    Array<{
+      cohort_month: string;
+      trials_started: number | string | null;
+      trials_converted: number | string | null;
+      conversion_pct: number | string | null;
+    }>
+  > {
+    const { data, error } = await this.db().rpc("fn_cohort_trial_conversion", {
+      p_from: params.from,
+      p_to: params.to,
+    });
+    if (error) this.throwMapped(error, "fn_cohort_trial_conversion");
+    return (
+      (data as Array<{
+        cohort_month: string;
+        trials_started: number | string | null;
+        trials_converted: number | string | null;
+        conversion_pct: number | string | null;
+      }>) ?? []
+    );
+  }
+
   async refresh(target: RefreshTarget = "all"): Promise<void> {
     if (target === "all") {
       const { error } = await this.db().rpc("refresh_all");
