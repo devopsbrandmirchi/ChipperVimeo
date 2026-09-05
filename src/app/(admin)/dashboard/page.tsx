@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { z } from "zod";
 
+import { CohortMatrixLazy } from "@/components/analytics/CohortMatrixLazy";
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { GainLossToolbar } from "@/components/analytics/GainLossToolbar";
 import { SubscriptionHealthMetrics } from "@/components/analytics/SubscriptionHealthMetrics";
@@ -282,6 +283,7 @@ export default async function DashboardPage({
         description="Subscription analytics overview for your Vimeo OTT audience."
         breadcrumbs={[{ label: "Dashboard" }]}
       />
+      <CohortMatrixLazy />
       <section className="space-y-4">
         <GainLossToolbar
           preset={range.preset}
