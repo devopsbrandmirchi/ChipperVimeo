@@ -71,7 +71,9 @@ export function SidebarNav({
       <nav className="flex flex-1 flex-col gap-0.5">
         {NAV.map((item) => {
           const active =
-            pathname === item.href || pathname.startsWith(`${item.href}/`);
+            item.href === "/analytics" ||
+            pathname === item.href ||
+            pathname.startsWith(`${item.href}/`);
           const Icon = item.icon;
           return (
             <Link
