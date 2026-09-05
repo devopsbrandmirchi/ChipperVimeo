@@ -31,7 +31,7 @@ function addUtcMonths(monthStartIso: string, delta: number): string {
   return `${y}-${m}-01`;
 }
 
-/** Default: last 4 UTC calendar months ending at current month. */
+/** Default: last 3 UTC calendar months ending at current month (keeps RPC under load). */
 export function resolveCohortMatrixRange(
   filters: CohortMatrixFilters = { horizon: 6 },
 ): { from: string; to: string; horizon: number } {
@@ -41,7 +41,7 @@ export function resolveCohortMatrixRange(
   const to = filters.to ? toMonthStartIso(filters.to) : current;
   const from = filters.from
     ? toMonthStartIso(filters.from)
-    : addUtcMonths(to, -3);
+    : addUtcMonths(to, -2);
   return { from, to, horizon };
 }
 
@@ -143,7 +143,7 @@ export function mapCohortMatrixResponse(
     from,
     to,
     horizon,
-    note: "Cohort = customer first seen (UTC). Month 1 = cohort month. Churn % = customers with any cancelled_at by end of relative month ÷ cohort size.",
+    note: "Cohort = customer first seen (UTC). Month 1 = cohort month. Churn % = customers with any cancelled_at by end of relative month ÷ cohort size. Served from analytics.cohort_matrix_cache (refresh: select analytics.refresh_cohort_matrix()).",
     revenue: revenueBlock,
     churn: churnBlock,
   };

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { z } from "zod";
 
-import { CohortMatrix } from "@/components/analytics/CohortMatrix";
+import { CohortMatrixLazy } from "@/components/analytics/CohortMatrixLazy";
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { GainLossToolbar } from "@/components/analytics/GainLossToolbar";
 import { SubscriptionHealthMetrics } from "@/components/analytics/SubscriptionHealthMetrics";
@@ -18,12 +18,10 @@ import { resolveSubscriptionMetricsRange } from "@/modules/analytics/mappers/sub
 import type {
   AnalyticsOverview,
   ChurnAnalyticsResponse,
-  CohortMatrixResponse,
   CountryAnalyticsResponse,
   DailyAnalyticsResponse,
   PlatformAnalyticsResponse,
   ProductAnalyticsResponse,
-  RevenueResponse,
   SubscriptionMetricsResponse,
   TrialAnalyticsResponse,
 } from "@/modules/analytics/dto/responses";
@@ -106,94 +104,14 @@ async function AnalyticsGainLoss({
   }
 }
 
-async function AnalyticsCohorts() {
-  try {
-    const data = await apiGetServer<CohortMatrixResponse>("/analytics/cohorts");
-    return <CohortMatrix data={data.data} />;
-  } catch (error) {
-    const message =
-      error instanceof ApiClientError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : "Apply migration 042 (fn_cohort_revenue_churn_matrix).";
-    return (
-      <RefreshErrorCard
-        title="Unable to load cohort matrix"
-        message={message}
-      />
-    );
-  }
-}
-
-function GainLossFallback() {
-  return (
-    <StatCard title="Metrics">
-      <div className="flex items-center gap-2 py-8 text-sm text-[var(--muted-foreground)]">
-        <LoadingSpinner />
-        Loading gain / loss metrics…
-      </div>
-    </StatCard>
-  );
-}
-
-export default async function AnalyticsPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
-  const sp = await searchParams;
-  const presetParam = parsePreset(first(sp.preset));
-  const startDate = first(sp.startDate);
-  const endDate = first(sp.endDate);
-  const range = resolveSubscriptionMetricsRange({
-    preset: startDate || endDate ? "custom" : presetParam,
-    startDate,
-    endDate,
-  });
-
-  const [overview, daily, countries, platforms, products, gainLossLast30] =
-    await Promise.all([
-      safeGet<AnalyticsOverview>("/analytics/overview"),
-      safeGet<DailyAnalyticsResponse>("/analytics/daily"),
-      safeGet<CountryAnalyticsResponse>("/analytics/countries"),
-      safeGet<PlatformAnalyticsResponse>("/analytics/platforms"),
-      safeGet<ProductAnalyticsResponse>("/analytics/products"),
-      safeGet<SubscriptionMetricsResponse>("/analytics/subscription-metrics", {
-        preset: "last30",
-      }),
-    ]);
-
-  // Soft-fail charts if overview missing; gain/loss still loads in Suspense.
-  if (!overview) {
-    const revenue = await safeGet<RevenueResponse>("/analytics/revenue");
-    return (
-      <div className="space-y-6">
-        <PageHeader title="Analytics" breadcrumbs={[{ label: "Analytics" }]} />
-        <RefreshErrorCard
-          title="Unable to load analytics overview"
-          message={
-            revenue?.note ??
-            "Overview snapshot unavailable. Gain/loss below may still work."
-          }
-        />
-        <section className="space-y-4">
-          <GainLossToolbar
-            preset={range.preset}
-            startDate={range.startDate}
-            endDate={range.endDate}
-          />
-          <Suspense fallback={<GainLossFallback />}>
-            <AnalyticsGainLoss
-              preset={presetParam}
-              startDate={startDate}
-              endDate={endDate}
-            />
-          </Suspense>
-        </section>
-      </div>
-    );
-  }
+async function AnalyticsChartsSection() {
+  const [overview, daily, countries, platforms, products] = await Promise.all([
+    safeGet<AnalyticsOverview>("/analytics/overview"),
+    safeGet<DailyAnalyticsResponse>("/analytics/daily"),
+    safeGet<CountryAnalyticsResponse>("/analytics/countries"),
+    safeGet<PlatformAnalyticsResponse>("/analytics/platforms"),
+    safeGet<ProductAnalyticsResponse>("/analytics/products"),
+  ]);
 
   const dailyCustomerGrowth =
     daily?.customers.map((r) => ({
@@ -213,6 +131,19 @@ export default async function AnalyticsPage({
       value: r.netGrowth,
     })) ?? [];
 
+  const usingDailyCustomer = dailyCustomerGrowth.length > 0;
+  const usingDailyRevenue = dailyRevenueTrend.length > 0;
+  const usingDailySubs = dailySubscriptionGrowth.length > 0;
+
+  // Avoid competing with gain/loss / cohort: only hit last30 when daily is empty.
+  const needGainLossFallback = !usingDailyCustomer || !usingDailySubs;
+  const gainLossLast30 = needGainLossFallback
+    ? await safeGet<SubscriptionMetricsResponse>(
+        "/analytics/subscription-metrics",
+        { preset: "last30" },
+      )
+    : null;
+
   const gainLossSeries = [...(gainLossLast30?.series ?? [])].sort((a, b) =>
     (a.reportDate ?? a.key).localeCompare(b.reportDate ?? b.key),
   );
@@ -226,10 +157,6 @@ export default async function AnalyticsPage({
     name: shortDate(r.reportDate ?? r.key),
     value: r.subscriptionGain - r.subscriptionLoss,
   }));
-
-  const usingDailyCustomer = dailyCustomerGrowth.length > 0;
-  const usingDailyRevenue = dailyRevenueTrend.length > 0;
-  const usingDailySubs = dailySubscriptionGrowth.length > 0;
 
   const customerGrowth = usingDailyCustomer
     ? dailyCustomerGrowth
@@ -265,50 +192,25 @@ export default async function AnalyticsPage({
         : null;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Analytics"
-        description="Gain/loss from subscription_events, plus chart breakdowns from analytics MVs."
-        breadcrumbs={[
-          { label: "Dashboard", href: "/dashboard" },
-          { label: "Analytics" },
-        ]}
-      />
-
-      <section className="space-y-4">
-        <GainLossToolbar
-          preset={range.preset}
-          startDate={range.startDate}
-          endDate={range.endDate}
-        />
-        <Suspense fallback={<GainLossFallback />}>
-          <AnalyticsGainLoss
-            preset={presetParam}
-            startDate={startDate}
-            endDate={endDate}
-          />
-        </Suspense>
-      </section>
-
-      <Suspense
-        fallback={
-          <div className="flex justify-center py-10">
-            <LoadingSpinner />
-          </div>
-        }
-      >
-        <AnalyticsCohorts />
-      </Suspense>
-
+    <>
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">
           Snapshot overview
         </h2>
-        <div className="grid gap-3 text-sm sm:grid-cols-3">
-          <Stat label="Active subscribers" value={overview.activeSubscribers} />
-          <Stat label="Trials" value={overview.trialSubscriptions} />
-          <Stat label="Cancelled" value={overview.cancelledSubscriptions} />
-        </div>
+        {overview ? (
+          <div className="grid gap-3 text-sm sm:grid-cols-3">
+            <Stat
+              label="Active subscribers"
+              value={overview.activeSubscribers}
+            />
+            <Stat label="Trials" value={overview.trialSubscriptions} />
+            <Stat label="Cancelled" value={overview.cancelledSubscriptions} />
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--muted-foreground)]">
+            Overview snapshot unavailable.
+          </p>
+        )}
       </section>
 
       <DashboardCharts
@@ -338,6 +240,69 @@ export default async function AnalyticsPage({
           products: "Open subscribers by product (top 8).",
         }}
       />
+    </>
+  );
+}
+
+function SectionFallback({ label }: { label: string }) {
+  return (
+    <StatCard title={label}>
+      <div className="flex items-center gap-2 py-8 text-sm text-[var(--muted-foreground)]">
+        <LoadingSpinner />
+        Loading {label.toLowerCase()}…
+      </div>
+    </StatCard>
+  );
+}
+
+export default async function AnalyticsPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const sp = await searchParams;
+  const presetParam = parsePreset(first(sp.preset));
+  const startDate = first(sp.startDate);
+  const endDate = first(sp.endDate);
+  const range = resolveSubscriptionMetricsRange({
+    preset: startDate || endDate ? "custom" : presetParam,
+    startDate,
+    endDate,
+  });
+
+  // Stream sections independently — do not block the shell on cohort/charts.
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Analytics"
+        description="Gain/loss from subscription_events, cohort grids, plus chart breakdowns from analytics MVs."
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Analytics" },
+        ]}
+      />
+
+      <section className="space-y-4">
+        <GainLossToolbar
+          preset={range.preset}
+          startDate={range.startDate}
+          endDate={range.endDate}
+        />
+        <Suspense fallback={<SectionFallback label="Gain / loss" />}>
+          <AnalyticsGainLoss
+            preset={presetParam}
+            startDate={startDate}
+            endDate={endDate}
+          />
+        </Suspense>
+      </section>
+
+      {/* Client-side after paint — avoids blocking SSR / DB contention with gain-loss */}
+      <CohortMatrixLazy />
+
+      <Suspense fallback={<SectionFallback label="Charts" />}>
+        <AnalyticsChartsSection />
+      </Suspense>
     </div>
   );
 }

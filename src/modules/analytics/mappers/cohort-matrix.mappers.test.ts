@@ -7,7 +7,7 @@ import {
 } from "@/modules/analytics/mappers/cohort-matrix.mappers";
 
 describe("resolveCohortMatrixRange", () => {
-  it("defaults to a 4-month window ending at current UTC month", () => {
+  it("defaults to a 3-month window ending at current UTC month", () => {
     const range = resolveCohortMatrixRange({ horizon: 6 });
     expect(range.horizon).toBe(6);
     expect(range.from).toMatch(/^\d{4}-\d{2}-01$/);
