@@ -275,12 +275,15 @@ export default async function AnalyticsPage({
     <div className="space-y-6">
       <PageHeader
         title="Analytics"
-        description="Gain/loss from subscription_events, cohort grids, plus chart breakdowns from analytics MVs."
+        description="Cohort grids, gain/loss from subscription_events, plus chart breakdowns from analytics MVs."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Analytics" },
         ]}
       />
+
+      {/* Top of page; client-side so it does not block gain/loss SSR */}
+      <CohortMatrixLazy />
 
       <section className="space-y-4">
         <GainLossToolbar
@@ -296,9 +299,6 @@ export default async function AnalyticsPage({
           />
         </Suspense>
       </section>
-
-      {/* Client-side after paint — avoids blocking SSR / DB contention with gain-loss */}
-      <CohortMatrixLazy />
 
       <Suspense fallback={<SectionFallback label="Charts" />}>
         <AnalyticsChartsSection />
