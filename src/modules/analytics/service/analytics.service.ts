@@ -2,12 +2,14 @@ import type { Logger } from "@/processors/logger/logger";
 import { BaseService } from "@/services/shared/base.service";
 import type {
   AnalyticsFilters,
+  CohortMatrixFilters,
   SubscriptionMetricsFilters,
 } from "@/modules/analytics/dto/filters";
 import type {
   AnalyticsOverview,
   ARRResponse,
   ChurnAnalyticsResponse,
+  CohortMatrixResponse,
   CountryAnalyticsResponse,
   CustomerAnalyticsResponse,
   DailyAnalyticsResponse,
@@ -38,6 +40,10 @@ import {
   mapSubscriptions,
   mapTrials,
 } from "@/modules/analytics/mappers/analytics.mappers";
+import {
+  mapCohortMatrixResponse,
+  resolveCohortMatrixRange,
+} from "@/modules/analytics/mappers/cohort-matrix.mappers";
 import {
   defaultLast30DaysFilters,
   hasHistoricalRange,
@@ -84,6 +90,9 @@ export interface IAnalyticsService {
   ): Promise<PaymentAnalyticsResponse>;
   getTrialAnalytics(filters?: AnalyticsFilters): Promise<TrialAnalyticsResponse>;
   getChurnAnalytics(): Promise<ChurnAnalyticsResponse>;
+  getCohortMatrix(
+    filters?: CohortMatrixFilters,
+  ): Promise<CohortMatrixResponse>;
   getMrr(): Promise<MRRResponse>;
   getArr(): Promise<ARRResponse>;
   getLtv(): Promise<LTVResponse>;
@@ -442,6 +451,20 @@ export class AnalyticsService extends BaseService implements IAnalyticsService {
         return mapChurn(churn, retention);
       } catch (error) {
         this.mapRepositoryError(error, "getChurnAnalytics");
+      }
+    });
+  }
+
+  async getCohortMatrix(
+    filters: CohortMatrixFilters = { horizon: 6 },
+  ): Promise<CohortMatrixResponse> {
+    return this.timed("getCohortMatrix", async () => {
+      try {
+        const range = resolveCohortMatrixRange(filters);
+        const rows = await this.repo.getCohortRevenueChurnMatrix(range);
+        return mapCohortMatrixResponse(rows, range);
+      } catch (error) {
+        this.mapRepositoryError(error, "getCohortMatrix");
       }
     });
   }

@@ -267,3 +267,27 @@ export type AnalyticsOverview = {
   countries: { dimension: string; total: number; note: string };
   platforms: { dimension: string; total: number; note: string };
 };
+
+/** Excel-shaped cohort grids (Revenue $ and Churn %). */
+export type CohortMatrixRow = {
+  cohortMonth: string;
+  cohortLabel: string;
+  cohortSize: number;
+  values: Array<number | null>;
+};
+
+export type CohortMatrixBlock = {
+  title: string;
+  unit: "currency_cents" | "percent";
+  columnLabels: string[];
+  rows: CohortMatrixRow[];
+};
+
+export type CohortMatrixResponse = {
+  from: string;
+  to: string;
+  horizon: number;
+  note: string;
+  revenue: CohortMatrixBlock;
+  churn: CohortMatrixBlock;
+};

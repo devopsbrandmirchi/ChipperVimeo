@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AnalyticsFilters } from "@/modules/analytics/dto/filters";
+import type { CohortMatrixDbRow } from "@/modules/analytics/mappers/cohort-matrix.mappers";
 import type {
   ChurnMetricRow,
   CountryMetricRow,
@@ -215,6 +216,23 @@ export class AnalyticsRepository {
     );
     if (error) this.throwMapped(error, "getRecentlyCancelledCustomers");
     return (data as CustomerMetricRow[]) ?? [];
+  }
+
+  async getCohortRevenueChurnMatrix(params: {
+    from: string;
+    to: string;
+    horizon: number;
+  }): Promise<CohortMatrixDbRow[]> {
+    const { data, error } = await this.db().rpc(
+      "fn_cohort_revenue_churn_matrix",
+      {
+        p_from: params.from,
+        p_to: params.to,
+        p_horizon: params.horizon,
+      },
+    );
+    if (error) this.throwMapped(error, "fn_cohort_revenue_churn_matrix");
+    return (data as CohortMatrixDbRow[]) ?? [];
   }
 
   async refresh(target: RefreshTarget = "all"): Promise<void> {

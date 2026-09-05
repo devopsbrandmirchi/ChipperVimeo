@@ -8,6 +8,7 @@ import type { NextRequest } from "next/server";
 import {
   analyticsFiltersSchema,
   buildDailyAnalyticsSchema,
+  cohortMatrixFiltersSchema,
   refreshAnalyticsSchema,
   subscriptionMetricsFiltersSchema,
 } from "@/modules/analytics/dto/filters";
@@ -21,6 +22,11 @@ export function parseAnalyticsFilters(request: NextRequest) {
 export function parseSubscriptionMetricsFilters(request: NextRequest) {
   const raw = Object.fromEntries(request.nextUrl.searchParams.entries());
   return subscriptionMetricsFiltersSchema.parse(raw);
+}
+
+export function parseCohortMatrixFilters(request: NextRequest) {
+  const raw = Object.fromEntries(request.nextUrl.searchParams.entries());
+  return cohortMatrixFiltersSchema.parse(raw);
 }
 
 export async function parseRefreshBody(request: NextRequest) {

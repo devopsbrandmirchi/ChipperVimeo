@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { z } from "zod";
 
+import { CohortMatrix } from "@/components/analytics/CohortMatrix";
 import { GainLossMetrics } from "@/components/analytics/GainLossMetrics";
 import { GainLossToolbar } from "@/components/analytics/GainLossToolbar";
 import { SubscriptionHealthMetrics } from "@/components/analytics/SubscriptionHealthMetrics";
@@ -17,6 +18,7 @@ import { resolveSubscriptionMetricsRange } from "@/modules/analytics/mappers/sub
 import type {
   AnalyticsOverview,
   ChurnAnalyticsResponse,
+  CohortMatrixResponse,
   CountryAnalyticsResponse,
   DailyAnalyticsResponse,
   PlatformAnalyticsResponse,
@@ -98,6 +100,26 @@ async function AnalyticsGainLoss({
     return (
       <RefreshErrorCard
         title="Unable to load gain / loss metrics"
+        message={message}
+      />
+    );
+  }
+}
+
+async function AnalyticsCohorts() {
+  try {
+    const data = await apiGetServer<CohortMatrixResponse>("/analytics/cohorts");
+    return <CohortMatrix data={data.data} />;
+  } catch (error) {
+    const message =
+      error instanceof ApiClientError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "Apply migration 042 (fn_cohort_revenue_churn_matrix).";
+    return (
+      <RefreshErrorCard
+        title="Unable to load cohort matrix"
         message={message}
       />
     );
@@ -267,6 +289,16 @@ export default async function AnalyticsPage({
           />
         </Suspense>
       </section>
+
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-10">
+            <LoadingSpinner />
+          </div>
+        }
+      >
+        <AnalyticsCohorts />
+      </Suspense>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">

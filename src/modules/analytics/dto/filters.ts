@@ -118,3 +118,20 @@ export const subscriptionMetricsFiltersSchema = z.object({
 export type SubscriptionMetricsFilters = z.infer<
   typeof subscriptionMetricsFiltersSchema
 >;
+
+export const cohortMatrixFiltersSchema = z.object({
+  /** First cohort month (YYYY-MM-01 or YYYY-MM-DD). */
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}(-\d{2})?$/)
+    .optional(),
+  /** Last cohort month (YYYY-MM-01 or YYYY-MM-DD). */
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}(-\d{2})?$/)
+    .optional(),
+  /** Relative months across (Month 1..N). Default 6. */
+  horizon: z.coerce.number().int().min(1).max(24).optional().default(6),
+});
+
+export type CohortMatrixFilters = z.infer<typeof cohortMatrixFiltersSchema>;
